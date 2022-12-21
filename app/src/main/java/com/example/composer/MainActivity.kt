@@ -11,9 +11,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
@@ -22,15 +19,44 @@ import androidx.compose.ui.unit.dp
 import com.example.composer.ui.theme.ComposerTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.example.composer.ui.theme.Teal200
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             ComposerTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Conversation(SampleData.conversationSample)
+                Surface() {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Conversation(SampleData.conversationSample)
+                        ExtendedFloatingActionButton(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(all= 8.dp),
+                            // on below line we are setting text for our fab
+                            text = { Text(text = "New Chat") },
+                            // on below line we are adding click listener.
+                            onClick = {
+                                //TODO
+                            },
+                            // on below line adding
+                            // a background color.
+                            backgroundColor = Teal200,
+                            // on below line we are
+                            // adding a content color.
+                            contentColor = Color.White,
+                            // on below line we are
+                            // adding icon for our fab
+                            icon = { Icon(Icons.Filled.Add, "") }
+                        )
+                    }
                 }
             }
         }
@@ -77,7 +103,9 @@ fun MessageCard(msg: Message) {
                 // surfaceColor color will be changing gradually from primary to surface
                 color = surfaceColor,
                 // animateContentSize will change the Surface size gradually
-                modifier = Modifier.animateContentSize().padding(1.dp)
+                modifier = Modifier
+                    .animateContentSize()
+                    .padding(1.dp)
             ) {
                 Text(
                     text = msg.body,
@@ -91,7 +119,6 @@ fun MessageCard(msg: Message) {
         }
     }
 }
-
 
 @Composable
 fun Conversation(messages: List<Message>) {
@@ -110,7 +137,7 @@ fun PreviewConversation() {
     }
 }
 
-@Preview(showBackground = true,name = "Light Mode")
+@Preview(showBackground = true, name = "Light Mode")
 @Preview(
     uiMode = Configuration.UI_MODE_NIGHT_YES,
     showBackground = true,
@@ -118,7 +145,7 @@ fun PreviewConversation() {
 )
 @Composable
 fun PreviewMessageCard() {
-    ComposerTheme(true){
+    ComposerTheme(true) {
         Surface {
             MessageCard(
                 msg = Message("Colleague", "Take a look at Jetpack Compose, it's great!")
