@@ -25,37 +25,36 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import com.example.composer.data.*
 import com.example.composer.ui.theme.Teal200
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            ComposerTheme {
-                Surface() {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Conversation(SampleData.conversationSample)
-                        ExtendedFloatingActionButton(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(all= 8.dp),
-                            // on below line we are setting text for our fab
-                            text = { Text(text = "New Chat") },
-                            // on below line we are adding click listener.
-                            onClick = {
-                                //TODO
-                            },
-                            // on below line adding
-                            // a background color.
-                            backgroundColor = Teal200,
-                            // on below line we are
-                            // adding a content color.
-                            contentColor = Color.White,
-                            // on below line we are
-                            // adding icon for our fab
-                            icon = { Icon(Icons.Filled.Add, "") }
-                        )
+        val mainViewModel = MainViewModel((application as MainApplication).repository)
+        //seems like you need to observe to actually get the data from database
+        //on logcat, it will print 0 first, then chats.json is loaded and finally the data is retrieved
+        mainViewModel.chats.observe(this) { chats ->
+            println(chats.size)
+            setContent {
+                ComposerTheme {
+                    Surface() {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            Conversation(mainViewModel.chats.value!!)
+                            ExtendedFloatingActionButton(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(all = 8.dp),
+                                text = { Text(text = "New Chat") },
+                                onClick = {
+                                    val chat= Chat("New Author","New Body")
+                                    mainViewModel.insert(chat)
+                                },
+                                backgroundColor = Teal200,
+                                contentColor = Color.White,
+                                icon = { Icon(Icons.Filled.Add, "") }
+                            )
+                        }
                     }
                 }
             }
@@ -63,10 +62,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class Message(val author: String, val body: String)
-
 @Composable
-fun MessageCard(msg: Message) {
+fun MessageCard(msg: Chat) {
     Row(modifier = Modifier.padding(all = 8.dp)) {
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),
@@ -121,19 +118,11 @@ fun MessageCard(msg: Message) {
 }
 
 @Composable
-fun Conversation(messages: List<Message>) {
+fun Conversation(chats: List<Chat>) {
     LazyColumn {
-        items(messages) { message ->
-            MessageCard(message)
+        items(chats) { chat ->
+            MessageCard(chat)
         }
-    }
-}
-
-@Preview
-@Composable
-fun PreviewConversation() {
-    ComposerTheme {
-        Conversation(SampleData.conversationSample)
     }
 }
 
@@ -148,7 +137,7 @@ fun PreviewMessageCard() {
     ComposerTheme(true) {
         Surface {
             MessageCard(
-                msg = Message("Colleague", "Take a look at Jetpack Compose, it's great!")
+                msg = Chat("Colleague", "Take a look at Jetpack Compose, it's great!")
             )
         }
     }
