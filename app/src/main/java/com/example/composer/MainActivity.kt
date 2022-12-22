@@ -31,6 +31,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import com.example.composer.data.*
 import com.example.composer.ui.theme.Teal200
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,13 +63,8 @@ class MainActivity : ComponentActivity() {
                                         .padding(all = 8.dp),
                                     text = { Text(text = "New Chat") },
                                     onClick = {
-                                        val chat= Chat("Expert Author","Loooooong Body")
-                                        //TODO use retrofit to get random message from api
-                                        mainViewModel.insert(chat)
-                                        coroutineScope.launch {
-                                            listState.animateScrollBy(100f)//this one more smooth
-//                                            listState.animateScrollToItem(chats.size)
-                                        }
+                                        val randomId= Random.nextInt(0,400).toString()
+                                        mainViewModel.getComment(randomId,coroutineScope,listState)
                                     },
                                     backgroundColor = Teal200,
                                     contentColor = Color.White,
