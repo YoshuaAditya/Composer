@@ -49,13 +49,17 @@ class MainActivity : ComponentActivity() {
                                 Conversation(it, lazyListState)
                             }
                             val button = createRef()
+                            val randomId = Random.nextInt(0, 400).toString()
                             //new chat ExtendedFloatingActionButton
-                            StatefulObject(coroutineScope,lazyListState,mainViewModel, Modifier
+                            StatefulObject(Modifier
                                 .constrainAs(button) {
                                     bottom.linkTo(parent.bottom)
                                     end.linkTo(parent.end)
                                 }
-                                .padding(all = 8.dp))
+                                .padding(all = 8.dp)
+                            ) {
+                                mainViewModel.getComment(randomId, coroutineScope, lazyListState)
+                            }
                         }
                     }
                 }
@@ -66,18 +70,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun StatefulObject(coroutineScope: CoroutineScope, lazyListState: LazyListState,mainViewModel: MainViewModel, modifier: Modifier) {
-    val randomId = Random.nextInt(0, 400).toString()
+fun StatefulObject(modifier: Modifier, onClick: () -> Unit) {
     StatelessObject(modifier) {
-        mainViewModel.getComment(randomId, coroutineScope, lazyListState)
+        onClick()
     }
 }
 
 @Composable
-fun StatelessObject(
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
+fun StatelessObject(modifier: Modifier, onClick: () -> Unit) {
     ExtendedFloatingActionButton(
         modifier = modifier,
         text = { Text(text = "New Chat") },
