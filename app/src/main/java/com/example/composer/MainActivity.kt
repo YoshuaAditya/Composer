@@ -7,7 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Modifier
@@ -24,60 +23,71 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.layoutId
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.example.composer.data.*
 import com.example.composer.ui.theme.Teal200
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val mainViewModel = MainViewModel((application as MainApplication).repository)
-        //seems like you need to observe to actually get the data from database
-        //on logcat, it will print 0 first, then chats.json is loaded and finally the data is retrieved
-        mainViewModel.chats.observe(this) { chats ->
-            println(chats.size)
-            setContent {
-                ComposerTheme {
-                    Surface() {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            ConstraintLayout(modifier = Modifier.fillMaxSize()) {
-                                //vals
-                                val coroutineScope = rememberCoroutineScope()
-                                val listState = rememberLazyListState()
-
-                                //chats
-                                Conversation(mainViewModel.chats.value!!,listState)
-                                //new chat button
-                                val button = createRef()
-                                ExtendedFloatingActionButton(
-                                    modifier = Modifier
-                                        .constrainAs(button) {
-                                            bottom.linkTo(parent.bottom)
-                                            end.linkTo(parent.end)
-                                        }
-                                        .padding(all = 8.dp),
-                                    text = { Text(text = "New Chat") },
-                                    onClick = {
-                                        val randomId= Random.nextInt(0,400).toString()
-                                        mainViewModel.getComment(randomId,coroutineScope,listState)
-                                    },
-                                    backgroundColor = Teal200,
-                                    contentColor = Color.White,
-                                    icon = { Icon(Icons.Filled.Add, "") }
-                                )
+        setContent {
+            ComposerTheme {
+                Surface() {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        ConstraintLayout(modifier = Modifier.fillMaxSize()) {
+                            //vals
+                            val chatsState = mainViewModel.chats.observeAsState()
+                            val coroutineScope = rememberCoroutineScope()
+                            val lazyListState = rememberLazyListState()
+                            //chats
+                            chatsState.value?.let {
+                                Conversation(it, lazyListState)
                             }
+                            val button = createRef()
+                            //new chat ExtendedFloatingActionButton
+                            StatefulObject(coroutineScope,lazyListState,mainViewModel, Modifier
+                                .constrainAs(button) {
+                                    bottom.linkTo(parent.bottom)
+                                    end.linkTo(parent.end)
+                                }
+                                .padding(all = 8.dp))
                         }
                     }
                 }
             }
         }
+
     }
 }
+
+@Composable
+fun StatefulObject(coroutineScope: CoroutineScope, lazyListState: LazyListState,mainViewModel: MainViewModel, modifier: Modifier) {
+    val randomId = Random.nextInt(0, 400).toString()
+    StatelessObject(modifier) {
+        mainViewModel.getComment(randomId, coroutineScope, lazyListState)
+    }
+}
+
+@Composable
+fun StatelessObject(
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    ExtendedFloatingActionButton(
+        modifier = modifier,
+        text = { Text(text = "New Chat") },
+        onClick = { onClick() },
+        backgroundColor = Teal200,
+        contentColor = Color.White,
+        icon = { Icon(Icons.Filled.Add, "") }
+    )
+}
+
 
 @Composable
 fun MessageCard(msg: Chat) {
@@ -136,7 +146,7 @@ fun MessageCard(msg: Chat) {
 
 @Composable
 fun Conversation(chats: List<Chat>, listState: LazyListState) {
-    LazyColumn(state=listState) {
+    LazyColumn(state = listState) {
         items(chats) { chat ->
             MessageCard(chat)
         }
