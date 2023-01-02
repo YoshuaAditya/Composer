@@ -4,9 +4,11 @@ import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Modifier
@@ -28,13 +30,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.example.composer.data.*
 import com.example.composer.ui.theme.Teal200
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    //weird error? java.lang.IllegalArgumentException: CreationExtras must have a value by `SAVED_STATE_REGISTRY_OWNER_KEY`
+    //https://stackoverflow.com/questions/73302605/creationextras-must-have-a-value-by-saved-state-registry-owner-key
+    private val mainViewModel: MainViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val mainViewModel = MainViewModel((application as MainApplication).repository)
         setContent {
             ComposerTheme {
                 Surface() {
@@ -42,14 +50,26 @@ class MainActivity : ComponentActivity() {
                         ConstraintLayout(modifier = Modifier.fillMaxSize()) {
                             //vals
                             val chatsState = mainViewModel.chats.observeAsState()
+                            val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
                             val coroutineScope = rememberCoroutineScope()
                             val lazyListState = rememberLazyListState()
+
                             //chats
                             chatsState.value?.let {
                                 Conversation(it, lazyListState)
                             }
                             val button = createRef()
                             val randomId = Random.nextInt(0, 400).toString()
+                            //loading bar
+                            val loadingBar = createRef()
+                            if (isLoadingState.value!!) {
+                                CircularProgressIndicator(Modifier.constrainAs(loadingBar) {
+                                    top.linkTo(parent.top)
+                                    start.linkTo(parent.start)
+                                    bottom.linkTo(parent.bottom)
+                                    end.linkTo(parent.end)
+                                })
+                            }
                             //new chat ExtendedFloatingActionButton
                             StatefulObject(Modifier
                                 .constrainAs(button) {
@@ -58,14 +78,23 @@ class MainActivity : ComponentActivity() {
                                 }
                                 .padding(all = 8.dp)
                             ) {
-                                mainViewModel.getComment(randomId, coroutineScope, lazyListState)
+                                mainViewModel.isLoadingChats.value = true
+                                mainViewModel.getComment(randomId)
+                                //observe isLoadingChats, if it false(finished doing retrofit) then scroll
+                                mainViewModel.isLoadingChats.observe(this@MainActivity) {
+                                    if (!it) {
+                                        coroutineScope.launch {
+                                            lazyListState.animateScrollBy(100f)//this one more smooth
+//                                            listState.animateScrollToItem(chats.size)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-
     }
 }
 
