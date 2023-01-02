@@ -51,6 +51,9 @@ interface ChatDao {
 
     @get:Query("select * from chats where id = 0")
     val chatLiveData: LiveData<Chat?>
+
+    @Query("DELETE FROM chats WHERE author = :author")
+    suspend fun deleteChat(author: String)
 }
 
 @Database(entities = [Chat::class], version = 1, exportSchema = false)

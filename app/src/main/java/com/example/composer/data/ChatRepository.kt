@@ -47,4 +47,8 @@ class ChatRepository @Inject constructor(private val chatDao: ChatDao) {
     suspend fun insert(chat: Chat) {
         chatDao.insertChat(chat)
     }
+    @WorkerThread
+    suspend fun delete(author:String) {
+        chatDao.deleteChat(author)
+    }
 }

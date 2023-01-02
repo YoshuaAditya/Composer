@@ -24,11 +24,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.graphics.Color
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.example.composer.data.*
+import com.example.composer.ui.theme.Red
 import com.example.composer.ui.theme.Teal200
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -59,9 +61,10 @@ class MainActivity : ComponentActivity() {
                                 Conversation(it, lazyListState)
                             }
                             val button = createRef()
+                            val loadingBar = createRef()
+                            val deleteButton = createRef()
                             val randomId = Random.nextInt(0, 400).toString()
                             //loading bar
-                            val loadingBar = createRef()
                             if (isLoadingState.value!!) {
                                 CircularProgressIndicator(Modifier.constrainAs(loadingBar) {
                                     top.linkTo(parent.top)
@@ -73,7 +76,7 @@ class MainActivity : ComponentActivity() {
                             //new chat ExtendedFloatingActionButton
                             StatefulObject(Modifier
                                 .constrainAs(button) {
-                                    bottom.linkTo(parent.bottom)
+                                    bottom.linkTo(deleteButton.top)
                                     end.linkTo(parent.end)
                                 }
                                 .padding(all = 8.dp)
@@ -89,6 +92,16 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                            }
+                            //delete chat
+                            DeleteChat(Modifier
+                                .constrainAs(deleteButton) {
+                                    bottom.linkTo(parent.bottom)
+                                    end.linkTo(parent.end)
+                                }
+                                .padding(all = 8.dp)
+                            ) {
+                                mainViewModel.deleteComment()
                             }
                         }
                     }
@@ -114,6 +127,18 @@ fun StatelessObject(modifier: Modifier, onClick: () -> Unit) {
         backgroundColor = Teal200,
         contentColor = Color.White,
         icon = { Icon(Icons.Filled.Add, "") }
+    )
+}
+
+@Composable
+fun DeleteChat(modifier: Modifier, onClick: () -> Unit) {
+    ExtendedFloatingActionButton(
+        modifier = modifier,
+        text = { Text(text = "Delete Chat") },
+        onClick = { onClick() },
+        backgroundColor = Red,
+        contentColor = Color.White,
+        icon = { Icon(Icons.Filled.Delete, "") }
     )
 }
 

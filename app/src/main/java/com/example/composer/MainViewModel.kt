@@ -47,4 +47,7 @@ class MainViewModel @Inject constructor(private val repository: ChatRepository,p
             }
         })
     }
+    fun deleteComment() = viewModelScope.launch {
+        if(chats.value?.size!! >0) chats.value?.get(0)?.let { repository.delete(it.author) }
+    }
 }
