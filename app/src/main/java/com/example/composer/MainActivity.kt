@@ -33,8 +33,6 @@ import com.example.composer.data.*
 import com.example.composer.ui.theme.Red
 import com.example.composer.ui.theme.Teal200
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
@@ -46,64 +44,69 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ComposerTheme {
-                Surface() {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        ConstraintLayout(modifier = Modifier.fillMaxSize()) {
-                            //vals
-                            val chatsState = mainViewModel.chats.observeAsState()
-                            val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
-                            val coroutineScope = rememberCoroutineScope()
-                            val lazyListState = rememberLazyListState()
+            MainActivityContent(mainViewModel, this)
+        }
+    }
+}
 
-                            //chats
-                            chatsState.value?.let {
-                                Conversation(it, lazyListState)
-                            }
-                            val button = createRef()
-                            val loadingBar = createRef()
-                            val deleteButton = createRef()
-                            val randomId = Random.nextInt(0, 400).toString()
-                            //loading bar
-                            if (isLoadingState.value!!) {
-                                CircularProgressIndicator(Modifier.constrainAs(loadingBar) {
-                                    top.linkTo(parent.top)
-                                    start.linkTo(parent.start)
-                                    bottom.linkTo(parent.bottom)
-                                    end.linkTo(parent.end)
-                                })
-                            }
-                            //new chat ExtendedFloatingActionButton
-                            StatefulObject(Modifier
-                                .constrainAs(button) {
-                                    bottom.linkTo(deleteButton.top)
-                                    end.linkTo(parent.end)
-                                }
-                                .padding(all = 8.dp)
-                            ) {
-                                mainViewModel.isLoadingChats.value = true
-                                mainViewModel.getComment(randomId)
-                                //observe isLoadingChats, if it false(finished doing retrofit) then scroll
-                                mainViewModel.isLoadingChats.observe(this@MainActivity) {
-                                    if (!it) {
-                                        coroutineScope.launch {
-                                            lazyListState.animateScrollBy(100f)//this one more smooth
+@Composable
+fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity) {
+    ComposerTheme {
+        Surface() {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ConstraintLayout(modifier = Modifier.fillMaxSize()) {
+                    //vals
+                    val chatsState = mainViewModel.chats.observeAsState()
+                    val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
+                    val coroutineScope = rememberCoroutineScope()
+                    val lazyListState = rememberLazyListState()
+
+                    //chats
+                    chatsState.value?.let {
+                        Conversation(it, lazyListState)
+                    }
+                    val button = createRef()
+                    val loadingBar = createRef()
+                    val deleteButton = createRef()
+                    val randomId = Random.nextInt(0, 400).toString()
+                    //loading bar
+                    if (isLoadingState.value!!) {
+                        CircularProgressIndicator(Modifier.constrainAs(loadingBar) {
+                            top.linkTo(parent.top)
+                            start.linkTo(parent.start)
+                            bottom.linkTo(parent.bottom)
+                            end.linkTo(parent.end)
+                        })
+                    }
+                    //new chat ExtendedFloatingActionButton
+                    StatefulObject(Modifier
+                        .constrainAs(button) {
+                            bottom.linkTo(deleteButton.top)
+                            end.linkTo(parent.end)
+                        }
+                        .padding(all = 8.dp)
+                    ) {
+                        mainViewModel.isLoadingChats.value = true
+                        mainViewModel.getComment(randomId)
+                        //observe isLoadingChats, if it false(finished doing retrofit) then scroll
+                        mainViewModel.isLoadingChats.observe(mainActivity) {
+                            if (!it) {
+                                coroutineScope.launch {
+                                    lazyListState.animateScrollBy(100f)//this one more smooth
 //                                            listState.animateScrollToItem(chats.size)
-                                        }
-                                    }
                                 }
-                            }
-                            //delete chat
-                            DeleteChat(Modifier
-                                .constrainAs(deleteButton) {
-                                    bottom.linkTo(parent.bottom)
-                                    end.linkTo(parent.end)
-                                }
-                                .padding(all = 8.dp)
-                            ) {
-                                mainViewModel.deleteComment()
                             }
                         }
+                    }
+                    //delete chat
+                    DeleteChat(Modifier
+                        .constrainAs(deleteButton) {
+                            bottom.linkTo(parent.bottom)
+                            end.linkTo(parent.end)
+                        }
+                        .padding(all = 8.dp)
+                    ) {
+                        mainViewModel.deleteComment()
                     }
                 }
             }
