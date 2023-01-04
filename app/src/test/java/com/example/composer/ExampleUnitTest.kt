@@ -2,7 +2,9 @@ package com.example.composer
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.lifecycle.asLiveData
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToLog
 import com.example.composer.data.Chat
 import com.example.composer.data.ChatDatabase
 import com.example.composer.data.ChatRepository
@@ -15,6 +17,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
@@ -29,7 +32,7 @@ import javax.inject.Inject
 @HiltAndroidTest
 //IllegalStateException: No instrumentation registered! Must run under a registering instrumentation.
 //need to depend robolectric and add this two lines
-@Config(application = HiltTestApplication::class)
+@Config(application = HiltTestApplication::class,instrumentedPackages = ["androidx.loader.content"])
 @RunWith(RobolectricTestRunner::class)
 class ExampleUnitTest {
     @get:Rule
@@ -52,11 +55,14 @@ class ExampleUnitTest {
     @Inject
     lateinit var chatRepository: ChatRepository
 
+    lateinit var mainViewModel :MainViewModel
+
     @Before
     @Throws(Exception::class)
     fun init() {
         ShadowLog.stream = System.out // Redirect Logcat to console
         hiltRule.inject()
+        mainViewModel= MainViewModel(chatRepository, apiInterface)
     }
 
     @Test
@@ -67,21 +73,29 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun testInsertChats() {
-        val mainViewModel = MainViewModel(chatRepository, apiInterface)
+    fun step1_testInsertChats() {
+        //To properly wait for retrofit, we separate retrofit methods in one test case before asserting.
+        //This way retrofit will finish first then next test case is executed
         val chat = Chat("author", "body")
+        //For some reason this also affects robolectric viewModel below, maybe because of using dagger hilt?
         mainViewModel.insert(chat)
-        mainViewModel.chats=chatRepository.getChats().asLiveData()
-        assertEquals("author", mainViewModel.chats.value?.get(0)?.author)
-        //seems like unit testing database/dao/livedata has its issues, for now leave the code just for reference
+        mainViewModel.getComment("100")
+        //It will show livedata Cannot invoke setValue on a background thread error, but it's not used for testing purpose
     }
 
     @Test
-    fun robolectric() {
-        val mainViewModel = MainViewModel(chatRepository, apiInterface)
-        composeTestRule.setContent { MainActivityContent(mainViewModel, MainActivity()) }
-        composeTestRule.onNodeWithText("New Chat").assertExists()
-        composeTestRule.onNodeWithText("Delete Chat").assertExists()
-        //"SDK 33 Main Thread @coroutine#3" java.lang.IllegalStateException: WorkManager is not initialized properly.  You have explicitly disabled WorkManagerInitializer in your manifest, have not manually called WorkManager#initialize at this point, and your Application does not implement Configuration.Provider.
+    fun step2_performClicksOnActivityResumed() {
+        //Reminder to make ChatDatabase worker into comment to workaround WorkManager not initialized properly error
+        Robolectric.buildActivity(MainActivity::class.java).use { controller ->
+            controller.setup() // Moves Activity to RESUMED state
+            val activity: MainActivity = controller.get()
+            composeTestRule.onRoot().printToLog("robolectric")
+            composeTestRule.onNodeWithText("Leone_Fay@orrin.com").assertExists()
+            composeTestRule.onNodeWithText("author").assertExists()
+            composeTestRule.onNodeWithText("Delete Chat").performClick()
+            composeTestRule.onRoot().printToLog("robolectric")
+            composeTestRule.onNodeWithText("author").assertDoesNotExist()
+            assertEquals(1,activity.mainViewModel.chats.value?.size)
+        }
     }
 }

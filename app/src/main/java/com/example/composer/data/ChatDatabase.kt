@@ -79,6 +79,8 @@ abstract class ChatDatabase : RoomDatabase() {
                             val request = OneTimeWorkRequestBuilder<ChatDatabaseWorker>()
                                 .setInputData(workDataOf(KEY_FILENAME to CHAT_DATA_FILENAME))
                                 .build()
+                            //Make line below into comment if you want to launch unit test
+                            //WorkManager not initialized properly on unit test environment
                             WorkManager.getInstance(context).enqueue(request)
                         }
                     }
