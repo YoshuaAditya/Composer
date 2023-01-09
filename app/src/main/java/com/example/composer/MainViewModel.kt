@@ -1,23 +1,15 @@
 package com.example.composer
 
-import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.asLiveData
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.*
 import com.example.composer.data.Chat
 import com.example.composer.data.ChatRepository
-import com.example.composer.retrofit.Comment
 import com.example.composer.retrofit.ApiInterface
+import com.example.composer.retrofit.Comment
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import java.util.concurrent.Flow
 import javax.inject.Inject
 
 @HiltViewModel
@@ -48,6 +40,8 @@ class MainViewModel @Inject constructor(private val repository: ChatRepository,p
         })
     }
     fun deleteComment() = viewModelScope.launch {
-        if(chats.value?.size!! >0) chats.value?.get(0)?.let { repository.delete(it.author) }
+        chats.value?.let {
+            if(it.isNotEmpty()) repository.delete(it[0].author)
+        }
     }
 }

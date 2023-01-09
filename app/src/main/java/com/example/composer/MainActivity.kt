@@ -7,31 +7,40 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import com.example.composer.ui.theme.ComposerTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
-import com.example.composer.data.*
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.composer.data.Chat
+import com.example.composer.ui.theme.ComposerTheme
 import com.example.composer.ui.theme.Red
 import com.example.composer.ui.theme.Teal200
+import com.example.composer.views.PopUpDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -41,16 +50,26 @@ class MainActivity : ComponentActivity() {
     //weird error? java.lang.IllegalArgumentException: CreationExtras must have a value by `SAVED_STATE_REGISTRY_OWNER_KEY`
     //https://stackoverflow.com/questions/73302605/creationextras-must-have-a-value-by-saved-state-registry-owner-key
     val mainViewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MainActivityContent(mainViewModel, this)
+            NavigationHost(mainViewModel, this)
         }
     }
 }
 
 @Composable
-fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity) {
+fun NavigationHost(mainViewModel: MainViewModel, mainActivity: MainActivity) {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "main") {
+        composable("main") { MainActivityContent(mainViewModel, mainActivity,navController ) }
+        composable("dialog") { PopUpDialog.DialogBox (mainViewModel){navController.popBackStack()}}
+    }
+}
+
+@Composable
+fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity,navController: NavController) {
     ComposerTheme {
         Surface() {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -68,6 +87,7 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                     val button = createRef()
                     val loadingBar = createRef()
                     val deleteButton = createRef()
+                    val searchButton = createRef()
                     val randomId = Random.nextInt(0, 400).toString()
                     //loading bar
                     if (isLoadingState.value!!) {
@@ -85,7 +105,7 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp)
-                    ) {
+                    ,"Random Chat", Teal200,Icons.Filled.Add) {
                         mainViewModel.isLoadingChats.value = true
                         mainViewModel.getComment(randomId)
                         //observe isLoadingChats, if it false(finished doing retrofit) then scroll
@@ -99,14 +119,24 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                         }
                     }
                     //delete chat
-                    DeleteChat(Modifier
+                    StatefulObject(Modifier
                         .constrainAs(deleteButton) {
+                            bottom.linkTo(searchButton.top)
+                            end.linkTo(parent.end)
+                        }
+                        .padding(all = 8.dp)
+                        ,"Delete Chat", Red,Icons.Filled.Delete) {
+                        mainViewModel.deleteComment()
+                    }
+                    //Get specific id comment
+                    StatefulObject(Modifier
+                        .constrainAs(searchButton) {
                             bottom.linkTo(parent.bottom)
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp)
-                    ) {
-                        mainViewModel.deleteComment()
+                        ,"Create Chat", Color.Blue,Icons.Filled.Create) {
+                        navController.navigate("dialog")
                     }
                 }
             }
@@ -115,36 +145,23 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
 }
 
 @Composable
-fun StatefulObject(modifier: Modifier, onClick: () -> Unit) {
-    StatelessObject(modifier) {
+fun StatefulObject(modifier: Modifier,text:String, color: Color,icon:ImageVector, onClick: () -> Unit) {
+    StatelessObject(modifier,text,color,icon) {
         onClick()
     }
 }
 
 @Composable
-fun StatelessObject(modifier: Modifier, onClick: () -> Unit) {
+fun StatelessObject(modifier: Modifier,text:String, color: Color,icon: ImageVector, onClick: () -> Unit) {
     ExtendedFloatingActionButton(
         modifier = modifier,
-        text = { Text(text = "New Chat") },
+        text = { Text(text = text) },
         onClick = { onClick() },
-        backgroundColor = Teal200,
+        backgroundColor = color,
         contentColor = Color.White,
-        icon = { Icon(Icons.Filled.Add, "") }
+        icon = { Icon(icon, "") }
     )
 }
-
-@Composable
-fun DeleteChat(modifier: Modifier, onClick: () -> Unit) {
-    ExtendedFloatingActionButton(
-        modifier = modifier,
-        text = { Text(text = "Delete Chat") },
-        onClick = { onClick() },
-        backgroundColor = Red,
-        contentColor = Color.White,
-        icon = { Icon(Icons.Filled.Delete, "") }
-    )
-}
-
 
 @Composable
 fun MessageCard(msg: Chat) {

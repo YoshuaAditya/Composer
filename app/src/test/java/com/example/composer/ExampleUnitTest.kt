@@ -1,10 +1,10 @@
 package com.example.composer
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.printToLog
+import androidx.compose.ui.test.performTextInput
 import com.example.composer.data.Chat
 import com.example.composer.data.ChatDatabase
 import com.example.composer.data.ChatRepository
@@ -89,13 +89,21 @@ class ExampleUnitTest {
         Robolectric.buildActivity(MainActivity::class.java).use { controller ->
             controller.setup() // Moves Activity to RESUMED state
             val activity: MainActivity = controller.get()
-            composeTestRule.onRoot().printToLog("robolectric")
-            composeTestRule.onNodeWithText("Leone_Fay@orrin.com").assertExists()
+//            composeTestRule.onRoot().printToLog("robolectric")
+            //check if insert chat success
+            composeTestRule.onNodeWithText("Leone_Fay@orrin.com").assertExists()//the author name on comment id 100
             composeTestRule.onNodeWithText("author").assertExists()
+            //check if delete chat success
             composeTestRule.onNodeWithText("Delete Chat").performClick()
-            composeTestRule.onRoot().printToLog("robolectric")
+//            composeTestRule.onRoot().printToLog("robolectric")
             composeTestRule.onNodeWithText("author").assertDoesNotExist()
             assertEquals(1,activity.mainViewModel.chats.value?.size)
+            //check create chat success
+            composeTestRule.onNodeWithText("Create Chat").performClick()
+            composeTestRule.onNodeWithContentDescription("author").performTextInput("test author")
+            composeTestRule.onNodeWithContentDescription("body").performTextInput("test body")
+            composeTestRule.onNodeWithText("Submit").performClick()
+            composeTestRule.onNodeWithText("test author").assertExists()
         }
     }
 }
