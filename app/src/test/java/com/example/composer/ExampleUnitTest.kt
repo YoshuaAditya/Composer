@@ -79,7 +79,8 @@ class ExampleUnitTest {
         val chat = Chat("author", "body")
         //For some reason this also affects robolectric viewModel below, maybe because of using dagger hilt?
         mainViewModel.insert(chat)
-        mainViewModel.getComment("100")
+        mainViewModel.getComment("100")//try get a successful retrofit response
+        mainViewModel.getComment("700")//try get a failed retrofit response
         //It will show livedata Cannot invoke setValue on a background thread error, but it's not used for testing purpose
     }
 
@@ -97,7 +98,9 @@ class ExampleUnitTest {
             composeTestRule.onNodeWithText("Delete Chat").performClick()
 //            composeTestRule.onRoot().printToLog("robolectric")
             composeTestRule.onNodeWithText("author").assertDoesNotExist()
-            assertEquals(1,activity.mainViewModel.chats.value?.size)
+            assertEquals(2,activity.mainViewModel.chats.value?.size)
+            //check if error chat shows
+            composeTestRule.onNodeWithText("Error!").assertExists()
             //check create chat success
             composeTestRule.onNodeWithText("Create Chat").performClick()
             composeTestRule.onNodeWithContentDescription("author").performTextInput("test author")
