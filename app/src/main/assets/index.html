@@ -1,0 +1,33 @@
+<html>
+<head>
+    <title>JSCommunicator</title>
+    <style>
+            #container {
+                position: absolute;
+                width: 100%;
+            }
+            #btn {
+                margin: 0;
+                position: relative;
+                left: 50%;
+                bottom: 50%;
+            }
+    </style>
+</head>
+
+<body>
+<div id="container">
+    <button id="btn" onclick="sendMessage();">Click</button>
+</div>
+
+
+<script>
+        function sendMessage() {
+            console.log("TOMER");
+            javascriptAndroidHandler.showToast("Hello World!");
+        }
+</script>
+</body>
+
+
+</html>

@@ -41,6 +41,7 @@ import com.example.composer.ui.theme.ComposerTheme
 import com.example.composer.ui.theme.Red
 import com.example.composer.ui.theme.Teal200
 import com.example.composer.views.PopUpDialog
+import com.example.composer.views.WebViewJavascript
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -65,6 +66,7 @@ fun NavigationHost(mainViewModel: MainViewModel, mainActivity: MainActivity) {
     NavHost(navController = navController, startDestination = "main") {
         composable("main") { MainActivityContent(mainViewModel, mainActivity,navController ) }
         composable("dialog") { PopUpDialog.DialogBox (mainViewModel){navController.popBackStack()}}
+        composable("javascript") { WebViewJavascript.IndexHTML ()}
     }
 }
 
@@ -137,6 +139,7 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                         .padding(all = 8.dp)
                         ,"Create Chat", Color.Blue,Icons.Filled.Create) {
                         navController.navigate("dialog")
+//                        navController.navigate("javascript")
                     }
                 }
             }
