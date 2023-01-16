@@ -1,9 +1,11 @@
 package com.example.composer
 
+import android.Manifest.permission.READ_CALENDAR
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -46,32 +48,52 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    var PERMISSION=false
     //weird error? java.lang.IllegalArgumentException: CreationExtras must have a value by `SAVED_STATE_REGISTRY_OWNER_KEY`
     //https://stackoverflow.com/questions/73302605/creationextras-must-have-a-value-by-saved-state-registry-owner-key
     val mainViewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        readPermission(READ_CALENDAR)
         setContent {
             NavigationHost(mainViewModel, this)
         }
     }
+    fun readPermission(permission: String){
+        val requestPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                PERMISSION=true
+            }
+        }
+        requestPermissionLauncher.launch(permission)
+    }
+}
+
+fun NavController.readPermission(mainActivity: MainActivity,permission: String) {
 }
 
 @Composable
 fun NavigationHost(mainViewModel: MainViewModel, mainActivity: MainActivity) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "main") {
-        composable("main") { MainActivityContent(mainViewModel, mainActivity,navController ) }
-        composable("dialog") { PopUpDialog.DialogBox (mainViewModel){navController.popBackStack()}}
-        composable("javascript") { WebViewJavascript.IndexHTML ()}
+        composable("main") { MainActivityContent(mainViewModel, mainActivity, navController) }
+        composable("dialog") { PopUpDialog.DialogBox(mainViewModel) { navController.popBackStack() } }
+        composable("javascript") { WebViewJavascript.IndexHTML() }
     }
 }
 
 @Composable
-fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity,navController: NavController) {
+fun MainActivityContent(
+    mainViewModel: MainViewModel,
+    mainActivity: MainActivity,
+    navController: NavController
+) {
     ComposerTheme {
         Surface() {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -106,8 +128,7 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                             bottom.linkTo(deleteButton.top)
                             end.linkTo(parent.end)
                         }
-                        .padding(all = 8.dp)
-                    ,"Random Chat", Teal200,Icons.Filled.Add) {
+                        .padding(all = 8.dp), "Random Chat", Teal200, Icons.Filled.Add) {
                         mainViewModel.isLoadingChats.value = true
                         mainViewModel.getComment(randomId)
                         //observe isLoadingChats, if it false(finished doing retrofit) then scroll
@@ -126,8 +147,7 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                             bottom.linkTo(searchButton.top)
                             end.linkTo(parent.end)
                         }
-                        .padding(all = 8.dp)
-                        ,"Delete Chat", Red,Icons.Filled.Delete) {
+                        .padding(all = 8.dp), "Delete Chat", Red, Icons.Filled.Delete) {
                         mainViewModel.deleteComment()
                     }
                     //Get specific id comment
@@ -136,10 +156,9 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
                             bottom.linkTo(parent.bottom)
                             end.linkTo(parent.end)
                         }
-                        .padding(all = 8.dp)
-                        ,"Create Chat", Color.Blue,Icons.Filled.Create) {
-                        navController.navigate("dialog")
-//                        navController.navigate("javascript")
+                        .padding(all = 8.dp), "Create Chat", Color.Blue, Icons.Filled.Create) {
+                        if(mainActivity.PERMISSION) navController.navigate("dialog")
+                        else navController.navigate("javascript")
                     }
                 }
             }
@@ -148,14 +167,26 @@ fun MainActivityContent(mainViewModel: MainViewModel, mainActivity: MainActivity
 }
 
 @Composable
-fun StatefulObject(modifier: Modifier,text:String, color: Color,icon:ImageVector, onClick: () -> Unit) {
-    StatelessObject(modifier,text,color,icon) {
+fun StatefulObject(
+    modifier: Modifier,
+    text: String,
+    color: Color,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    StatelessObject(modifier, text, color, icon) {
         onClick()
     }
 }
 
 @Composable
-fun StatelessObject(modifier: Modifier,text:String, color: Color,icon: ImageVector, onClick: () -> Unit) {
+fun StatelessObject(
+    modifier: Modifier,
+    text: String,
+    color: Color,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
     ExtendedFloatingActionButton(
         modifier = modifier,
         text = { Text(text = text) },
@@ -246,3 +277,5 @@ fun PreviewMessageCard() {
         }
     }
 }
+
+
