@@ -1,7 +1,8 @@
 package com.example.composer
 
-import android.Manifest.permission.READ_CALENDAR
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,6 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -51,31 +53,30 @@ import kotlin.random.Random
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    var PERMISSION=false
     //weird error? java.lang.IllegalArgumentException: CreationExtras must have a value by `SAVED_STATE_REGISTRY_OWNER_KEY`
     //https://stackoverflow.com/questions/73302605/creationextras-must-have-a-value-by-saved-state-registry-owner-key
     val mainViewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        readPermission(READ_CALENDAR)
         setContent {
             NavigationHost(mainViewModel, this)
         }
     }
-    fun readPermission(permission: String){
-        val requestPermissionLauncher = registerForActivityResult(
+    val requestLauncher = registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { isGranted ->
             if (isGranted) {
-                PERMISSION=true
+                //not sure how to tell navcontroller to navigate from here
             }
-        }
-        requestPermissionLauncher.launch(permission)
+            else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && shouldShowRequestPermissionRationale(android.Manifest.permission.READ_CALENDAR)) {
+                println("show reason")
+            }
+            else{
+                println("always deny")
+            }
     }
-}
-
-fun NavController.readPermission(mainActivity: MainActivity,permission: String) {
 }
 
 @Composable
@@ -157,8 +158,13 @@ fun MainActivityContent(
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp), "Create Chat", Color.Blue, Icons.Filled.Create) {
-                        if(mainActivity.PERMISSION) navController.navigate("dialog")
-                        else navController.navigate("javascript")
+                        if(ContextCompat.checkSelfPermission(mainActivity, android.Manifest.permission.READ_CALENDAR)
+                            == PackageManager.PERMISSION_GRANTED){
+                            navController.navigate("dialog")
+                        }
+                        else{
+                            mainActivity.requestLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+                        }
                     }
                 }
             }
