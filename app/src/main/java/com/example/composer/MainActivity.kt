@@ -44,6 +44,8 @@ import com.example.composer.data.Chat
 import com.example.composer.ui.theme.ComposerTheme
 import com.example.composer.ui.theme.Red
 import com.example.composer.ui.theme.Teal200
+import com.example.composer.views.AlertDialogView
+import com.example.composer.views.CalendarPrompt
 import com.example.composer.views.PopUpDialog
 import com.example.composer.views.WebViewJavascript
 import dagger.hilt.android.AndroidEntryPoint
@@ -70,11 +72,11 @@ class MainActivity : ComponentActivity() {
                 //not sure how to tell navcontroller to navigate from here
             }
             else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && shouldShowRequestPermissionRationale(android.Manifest.permission.READ_CALENDAR)) {
-                println("show reason")
+                && shouldShowRequestPermissionRationale(android.Manifest.permission.WRITE_CALENDAR)) {
+                AlertDialogView.buildAlert(this)
             }
             else{
-                println("always deny")
+                AlertDialogView.buildAlert(this)
             }
     }
 }
@@ -158,12 +160,17 @@ fun MainActivityContent(
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp), "Create Chat", Color.Blue, Icons.Filled.Create) {
-                        if(ContextCompat.checkSelfPermission(mainActivity, android.Manifest.permission.READ_CALENDAR)
+                        if(ContextCompat.checkSelfPermission(mainActivity, android.Manifest.permission.WRITE_CALENDAR)
                             == PackageManager.PERMISSION_GRANTED){
+                            CalendarPrompt.pushAppointmentsToCalender(mainActivity,"Title","Information","Location"
+                                ,1,System.currentTimeMillis(),
+                                needReminder = true,
+                                needMailService = true
+                            )
                             navController.navigate("dialog")
                         }
                         else{
-                            mainActivity.requestLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+                            mainActivity.requestLauncher.launch(android.Manifest.permission.WRITE_CALENDAR)
                         }
                     }
                 }
