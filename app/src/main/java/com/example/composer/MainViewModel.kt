@@ -28,7 +28,7 @@ class MainViewModel @Inject constructor(private val repository: ChatRepository,p
                     val chat = Chat(comment.email, comment.body)
                     insert(chat)
                 } else {
-                    val chat = Chat("Error!", "Something went wrong")
+                    val chat = Chat("Error!", "ID not found")
                     insert(chat)
                     println(response.errorBody()?.string())
                 }

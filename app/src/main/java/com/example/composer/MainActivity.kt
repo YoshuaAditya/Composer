@@ -13,7 +13,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -25,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
@@ -42,12 +42,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.composer.data.Chat
 import com.example.composer.ui.theme.ComposerTheme
+import com.example.composer.ui.theme.LightBlue
 import com.example.composer.ui.theme.Red
 import com.example.composer.ui.theme.Teal200
-import com.example.composer.views.AlertDialogView
-import com.example.composer.views.CalendarPrompt
-import com.example.composer.views.PopUpDialog
-import com.example.composer.views.WebViewJavascript
+import com.example.composer.views.*
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -62,38 +60,38 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            NavigationHost(mainViewModel, this)
+            NavigationHost(this)
         }
     }
+
     val requestLauncher = registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted ->
-            if (isGranted) {
-                //not sure how to tell navcontroller to navigate from here
-            }
-            else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && shouldShowRequestPermissionRationale(android.Manifest.permission.WRITE_CALENDAR)) {
-                AlertDialogView.buildAlert(this)
-            }
-            else{
-                AlertDialogView.buildAlert(this)
-            }
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            //not sure how to tell navcontroller to navigate from here
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+            && shouldShowRequestPermissionRationale(android.Manifest.permission.WRITE_CALENDAR)
+        ) {
+            AlertDialogView.buildAlert(this)
+        } else {
+            AlertDialogView.buildAlert(this)
+        }
     }
 }
 
 @Composable
-fun NavigationHost(mainViewModel: MainViewModel, mainActivity: MainActivity) {
+fun NavigationHost(mainActivity: MainActivity) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "main") {
-        composable("main") { MainActivityContent(mainViewModel, mainActivity, navController) }
-        composable("dialog") { PopUpDialog.DialogBox(mainViewModel) { navController.popBackStack() } }
+        composable("main") { MainActivityContent(mainActivity, navController) }
+        composable("dialog") { PopUpDialog.DialogBox(mainActivity.mainViewModel) { navController.popBackStack() } }
         composable("javascript") { WebViewJavascript.IndexHTML() }
+        composable("settings") { SettingsView.SettingsContent() }
     }
 }
 
 @Composable
 fun MainActivityContent(
-    mainViewModel: MainViewModel,
     mainActivity: MainActivity,
     navController: NavController
 ) {
@@ -102,6 +100,7 @@ fun MainActivityContent(
             Box(modifier = Modifier.fillMaxSize()) {
                 ConstraintLayout(modifier = Modifier.fillMaxSize()) {
                     //vals
+                    val mainViewModel = mainActivity.mainViewModel
                     val chatsState = mainViewModel.chats.observeAsState()
                     val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
                     val coroutineScope = rememberCoroutineScope()
@@ -111,38 +110,43 @@ fun MainActivityContent(
                     chatsState.value?.let {
                         Conversation(it, lazyListState)
                     }
+                    //refs for constrain layout
                     val button = createRef()
                     val loadingBar = createRef()
                     val deleteButton = createRef()
                     val searchButton = createRef()
-                    val randomId = Random.nextInt(0, 400).toString()
-                    //loading bar
-                    if (isLoadingState.value!!) {
-                        CircularProgressIndicator(Modifier.constrainAs(loadingBar) {
-                            top.linkTo(parent.top)
-                            start.linkTo(parent.start)
-                            bottom.linkTo(parent.bottom)
-                            end.linkTo(parent.end)
-                        })
+                    val settingsButton = createRef()
+                    //loading bar, if it finished doing retrofit then scroll
+                    isLoadingState.value?.let { isLoading ->
+                        if (isLoading) {
+                            CircularProgressIndicator(Modifier.constrainAs(loadingBar) {
+                                top.linkTo(parent.top)
+                                start.linkTo(parent.start)
+                                bottom.linkTo(parent.bottom)
+                                end.linkTo(parent.end)
+                            })
+                        } else {
+                            LaunchedEffect(true) {
+                                coroutineScope.launch {
+//                                lazyListState.animateScrollBy(100f)//this one more smooth
+                                    chatsState.value?.let {//scroll to last item
+                                        lazyListState.animateScrollToItem(it.size)
+                                    }
+                                }
+                            }
+                        }
                     }
-                    //new chat ExtendedFloatingActionButton
+                    //random chat ExtendedFloatingActionButton
                     StatefulObject(Modifier
                         .constrainAs(button) {
                             bottom.linkTo(deleteButton.top)
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp), "Random Chat", Teal200, Icons.Filled.Add) {
+                        val randomId = Random.nextInt(0, 502)
+                            .toString()//the API max id is 500, if you get 501 it will show error chat instead
                         mainViewModel.isLoadingChats.value = true
                         mainViewModel.getComment(randomId)
-                        //observe isLoadingChats, if it false(finished doing retrofit) then scroll
-                        mainViewModel.isLoadingChats.observe(mainActivity) {
-                            if (!it) {
-                                coroutineScope.launch {
-                                    lazyListState.animateScrollBy(100f)//this one more smooth
-//                                            listState.animateScrollToItem(chats.size)
-                                }
-                            }
-                        }
                     }
                     //delete chat
                     StatefulObject(Modifier
@@ -160,18 +164,35 @@ fun MainActivityContent(
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp), "Create Chat", Color.Blue, Icons.Filled.Create) {
-                        if(ContextCompat.checkSelfPermission(mainActivity, android.Manifest.permission.WRITE_CALENDAR)
-                            == PackageManager.PERMISSION_GRANTED){
-                            CalendarPrompt.pushAppointmentsToCalender(mainActivity,"Title","Information","Location"
-                                ,1,System.currentTimeMillis(),
+                        if (ContextCompat.checkSelfPermission(
+                                mainActivity,
+                                android.Manifest.permission.WRITE_CALENDAR
+                            )
+                            == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            CalendarPrompt.pushAppointmentsToCalender(
+                                mainActivity,
+                                "Title",
+                                "Information",
+                                "Location",
+                                1,
+                                System.currentTimeMillis(),
                                 needReminder = true,
                                 needMailService = true
                             )
                             navController.navigate("dialog")
-                        }
-                        else{
+                        } else {
                             mainActivity.requestLauncher.launch(android.Manifest.permission.WRITE_CALENDAR)
                         }
+                    }
+                    //settings button
+                    StatefulObject(Modifier
+                        .constrainAs(settingsButton) {
+                            top.linkTo(parent.top)
+                            end.linkTo(parent.end)
+                        }.padding(all = 8.dp), text = "", color = LightBlue, icon = Icons.Filled.Settings
+                    ) {
+                        navController.navigate("settings")
                     }
                 }
             }

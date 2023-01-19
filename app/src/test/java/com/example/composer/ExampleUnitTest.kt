@@ -104,7 +104,7 @@ class ExampleUnitTest {
             //give calendar permission
             val application: Application = ApplicationProvider.getApplicationContext()
             val app = Shadows.shadowOf(application)
-            app.grantPermissions(android.Manifest.permission.READ_CALENDAR)
+            app.grantPermissions(android.Manifest.permission.WRITE_CALENDAR)
             //check create chat success
             composeTestRule.onNodeWithText("Create Chat").performClick()
             composeTestRule.onNodeWithContentDescription("author").performTextInput("test author")
