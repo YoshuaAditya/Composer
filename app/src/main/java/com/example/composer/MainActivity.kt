@@ -40,6 +40,8 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
 import com.example.composer.data.Chat
 import com.example.composer.ui.theme.ComposerTheme
 import com.example.composer.ui.theme.LightBlue
@@ -186,11 +188,13 @@ fun MainActivityContent(
                         }
                     }
                     //settings button
-                    StatefulObject(Modifier
-                        .constrainAs(settingsButton) {
-                            top.linkTo(parent.top)
-                            end.linkTo(parent.end)
-                        }.padding(all = 8.dp), text = "", color = LightBlue, icon = Icons.Filled.Settings
+                    StatefulObject(
+                        Modifier
+                            .constrainAs(settingsButton) {
+                                top.linkTo(parent.top)
+                                end.linkTo(parent.end)
+                            }
+                            .padding(all = 8.dp), text = "", color = LightBlue, icon = Icons.Filled.Settings
                     ) {
                         navController.navigate("settings")
                     }
@@ -231,6 +235,7 @@ fun StatelessObject(
     )
 }
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun MessageCard(msg: Chat) {
     Row(modifier = Modifier.padding(all = 8.dp)) {
@@ -281,6 +286,9 @@ fun MessageCard(msg: Chat) {
                     maxLines = if (isExpanded) Int.MAX_VALUE else 1,
                     style = MaterialTheme.typography.body2
                 )
+            }
+            if(msg.body.startsWith("http://")||msg.body.startsWith("https://")){
+                GlideImage(model = msg.body,modifier = Modifier.padding(all = 4.dp), contentDescription = "")
             }
         }
     }
