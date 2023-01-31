@@ -38,25 +38,24 @@ class PopUpDialog {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        TextField(
-                            value = author.value,
-                            onValueChange = { author.value = it },
-                            maxLines = 1,
-                            modifier = Modifier.semantics { contentDescription ="author" },
-                            placeholder = { Text(text = "Enter author...") },
-                        )
+//                        TextField(
+//                            value = author.value,
+//                            onValueChange = { author.value = it },
+//                            maxLines = 1,
+//                            modifier = Modifier.semantics { contentDescription = "author" },
+//                            placeholder = { Text(text = "Enter author...") },
+//                        )
                         TextField(
                             value = body.value,
                             onValueChange = { body.value = it },
-                            modifier = Modifier.semantics { contentDescription ="body" },
+                            modifier = Modifier.semantics { contentDescription = "body" },
                             placeholder = { Text(text = "Enter body...") },
                         )
                         Button(
                             modifier = Modifier,
                             onClick = {
-                                val chat = Chat(author.value.text, body.value.text)
-                                if(author.value.text.isNotBlank()&&body.value.text.isNotBlank())
-                                    mainViewModel.insert(chat)
+                                val chat = Chat("author", body.value.text)
+                                if(body.value.text.isNotBlank())mainViewModel.sendChat(chat)
                                 onDismiss()
                             }) {
                             Text(

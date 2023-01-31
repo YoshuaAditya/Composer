@@ -1,11 +1,7 @@
 package com.example.composer
 
 import android.app.Service
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
-import android.content.pm.PackageManager
+import android.content.*
 import android.content.res.Configuration
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -13,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,7 +38,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -74,6 +70,20 @@ class MainActivity : ComponentActivity() {
     val SERVICE_TYPE = "_nsdchat._tcp."
     var boundService: TcpServerService? = null
     private var serviceIntent: Intent? = null
+    var host: InetAddress? = null
+    val receiver = ReceiveMessage()
+
+    inner class ReceiveMessage : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent) {
+            val extra = intent.extras
+            extra?.let {
+                val chat =
+                    Chat(host.toString(), it.getString("body").toString())
+                mainViewModel.insert(chat)
+            }
+
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +113,7 @@ class MainActivity : ComponentActivity() {
                         registerService(it.port)
                     }
                     unbindService(this)
+                    registerReceiver(receiver, IntentFilter("TCPMessage"))
                 }
 
                 override fun onServiceDisconnected(name: ComponentName?) {
@@ -145,6 +156,16 @@ class MainActivity : ComponentActivity() {
             // with the name Android actually used.
             mServiceName = NsdServiceInfo.serviceName
             Log.d(TAG, "Service Registered $mServiceName")
+            try {
+                nsdManager.discoverServices(
+                    SERVICE_TYPE,
+                    NsdManager.PROTOCOL_DNS_SD,
+                    discoveryListener
+                )
+            } catch (e: java.lang.IllegalArgumentException) {
+                println(e)
+            }
+
         }
 
         override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
@@ -170,6 +191,11 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "Service discovery started")
         }
 
+        //heads up, seems like emulator doesnt able to connect with nsd, need real devices,
+        //make sure router supports multicast https://stackoverflow.com/questions/36797008/android-nsd-onservicefound-not-getting-called
+        //also, i think the way its intended is to run both registration+discovery listener,
+        //this way, service name will be different, ex: there will be NsdChat and NsdChat (2)
+        //discovering same machine/servicename will ignore it, while different servicenames will connect
         override fun onServiceFound(service: NsdServiceInfo) {
             // A service was found! Do something with it.
             Log.d(TAG, "Service discovery success $service")
@@ -179,11 +205,11 @@ class MainActivity : ComponentActivity() {
                     Log.d(TAG, "Unknown Service Type: ${service.serviceType}")
                 service.serviceName == mServiceName -> // The name of the service tells the user what they'd be
                     // connecting to. It could be "Bob's Chat App".
-//                    Log.d(TAG, "Same machine: $mServiceName")
-                    nsdManager.resolveService(
-                        service,
-                        resolveListener
-                    )
+                    Log.d(TAG, "Same machine: $mServiceName")
+//                    nsdManager.resolveService(
+//                        service,
+//                        resolveListener
+//                    )
                 service.serviceName.contains("NsdChat") -> nsdManager.resolveService(
                     service,
                     resolveListener
@@ -226,23 +252,25 @@ class MainActivity : ComponentActivity() {
             }
             val mService = serviceInfo
             val port: Int = serviceInfo.port
-            val host: InetAddress = serviceInfo.host
+            host = serviceInfo.host
 
             //connect to serversocket based on host/port information acquired from NSD discover
-            val socket = Socket(host,port)
+            Toast.makeText(this@MainActivity,"$host connected",Toast.LENGTH_SHORT).show()
+            val socket = Socket(host, port)
 
             //outgoing stream redirect to socket
-            val out = DataOutputStream(socket.getOutputStream())
+            mainViewModel.outputStream = DataOutputStream(socket.getOutputStream())
 
-            out.writeUTF("This is the first type of message.")
-            out.writeUTF("This is the second type of message.")
-            out.writeUTF("This is the third type of message (Part 1).")
-            out.writeUTF("This is the third type of message (Part 2).")
-            out.flush() // Send off the data
-            out.close()
-
-            //Close connection
-            socket.close()
+//            out.writeUTF("This is the first type of message.\n")
+//            out.flush()
+//            out.writeUTF("This is the second type of message.")
+//            out.writeUTF("This is the third type of message (Part 1).")
+//            out.writeUTF("This is the third type of message (Part 2).")
+//            out.flush() // Send off the data
+//            out.close()
+//
+//            //Close connection
+//            socket.close()
         }
     }
 
@@ -258,14 +286,15 @@ class MainActivity : ComponentActivity() {
         nsdManager.apply {
             try {
                 unregisterService(registrationListener)
-            } catch (e: java.lang.IllegalArgumentException) {
-                println(e)
-            }
-            try {
                 stopServiceDiscovery(discoveryListener)
             } catch (e: java.lang.IllegalArgumentException) {
                 println(e)
             }
+        }
+        try {
+            unregisterReceiver(receiver)
+        } catch (e: java.lang.IllegalArgumentException) {
+            println(e)
         }
     }
 
@@ -371,26 +400,26 @@ fun MainActivityContent(
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp), "Create Chat", Color.Blue, Icons.Filled.Create) {
-                        if (ContextCompat.checkSelfPermission(
-                                mainActivity,
-                                android.Manifest.permission.WRITE_CALENDAR
-                            )
-                            == PackageManager.PERMISSION_GRANTED
-                        ) {
-                            CalendarPrompt.pushAppointmentsToCalender(
-                                mainActivity,
-                                "Title",
-                                "Information",
-                                "Location",
-                                1,
-                                System.currentTimeMillis(),
-                                needReminder = true,
-                                needMailService = true
-                            )
-                            navController.navigate("dialog")
-                        } else {
-                            mainActivity.requestLauncher.launch(android.Manifest.permission.WRITE_CALENDAR)
-                        }
+                        navController.navigate("dialog")
+//                        if (ContextCompat.checkSelfPermission(
+//                                mainActivity,
+//                                android.Manifest.permission.WRITE_CALENDAR
+//                            )
+//                            == PackageManager.PERMISSION_GRANTED
+//                        ) {
+//                            CalendarPrompt.pushAppointmentsToCalender(
+//                                mainActivity,
+//                                "Title",
+//                                "Information",
+//                                "Location",
+//                                1,
+//                                System.currentTimeMillis(),
+//                                needReminder = true,
+//                                needMailService = true
+//                            )
+//                        } else {
+//                            mainActivity.requestLauncher.launch(android.Manifest.permission.WRITE_CALENDAR)
+//                        }
                     }
                     //settings button
                     StatefulObject(
@@ -406,41 +435,19 @@ fun MainActivityContent(
                     ) {
                         navController.navigate("settings")
                     }
-                    //host button
+                    //Connect button
                     StatefulObject(
                         Modifier
                             .constrainAs(hostButton) {
-                                bottom.linkTo(clientButton.top)
-                                end.linkTo(searchButton.start)
-                            }
-                            .padding(all = 8.dp),
-                        text = "Host",
-                        color = Color.DarkGray,
-                        icon = Icons.Filled.Home
-                    ) {
-                        mainActivity.doBindingService()
-                    }
-                    //client button
-                    StatefulObject(
-                        Modifier
-                            .constrainAs(clientButton) {
                                 bottom.linkTo(parent.bottom)
                                 end.linkTo(searchButton.start)
                             }
                             .padding(all = 8.dp),
-                        text = "Client",
-                        color = Color.LightGray,
-                        icon = Icons.Filled.Person
+                        text = "Connect",
+                        color = Color.DarkGray,
+                        icon = Icons.Filled.Home
                     ) {
-                        try {
-                            mainActivity.nsdManager.discoverServices(
-                                mainActivity.SERVICE_TYPE,
-                                NsdManager.PROTOCOL_DNS_SD,
-                                mainActivity.discoveryListener
-                            )
-                        } catch (e: java.lang.IllegalArgumentException) {
-                            println(e)
-                        }
+                        mainActivity.doBindingService()
                     }
                 }
             }

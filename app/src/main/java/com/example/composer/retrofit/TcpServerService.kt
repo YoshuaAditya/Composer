@@ -16,7 +16,7 @@ import com.example.composer.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import java.io.DataInputStream
+import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.IOException
 import java.net.ServerSocket
@@ -33,12 +33,17 @@ class TcpServerService : Service() {
                 println("while loop")
                 val socket = serverSocket.accept()
                 println("New client: $socket")
-                val dataInputStream = DataInputStream(socket.getInputStream())
+                val dataInputStream = BufferedReader(socket.getInputStream().reader())
                 val dataOutputStream = DataOutputStream(socket.getOutputStream())
 
                 while(true){
-                    if (dataInputStream.available() > 0) {
-                        Log.i(TAG, "Received: " + dataInputStream.readUTF())
+                    if (dataInputStream.ready()) {
+                        //use lambda function implements closable interface to automatically close the stream
+                        val body=dataInputStream.readLine()
+                        Log.i(TAG, "Received: $body")
+                        val intent = Intent("TCPMessage")
+                        intent.putExtra("body", body)
+                        sendBroadcast(intent)
                     }
                 }
             }
