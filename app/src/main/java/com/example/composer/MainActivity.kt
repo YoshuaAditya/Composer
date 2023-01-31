@@ -4,12 +4,9 @@ import android.app.Service
 import android.content.*
 import android.content.res.Configuration
 import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,9 +50,6 @@ import com.example.composer.ui.theme.Teal200
 import com.example.composer.views.*
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import java.io.DataOutputStream
-import java.net.InetAddress
-import java.net.Socket
 import kotlin.random.Random
 
 
@@ -64,56 +58,39 @@ class MainActivity : ComponentActivity() {
     //weird error? java.lang.IllegalArgumentException: CreationExtras must have a value by `SAVED_STATE_REGISTRY_OWNER_KEY`
     //https://stackoverflow.com/questions/73302605/creationextras-must-have-a-value-by-saved-state-registry-owner-key
     val mainViewModel: MainViewModel by viewModels()
-    lateinit var nsdManager: NsdManager
-    val TAG = "tag"
-    var mServiceName = "NsdChat"
-    val SERVICE_TYPE = "_nsdchat._tcp."
     var boundService: TcpServerService? = null
-    private var serviceIntent: Intent? = null
-    var host: InetAddress? = null
-    val receiver = ReceiveMessage()
-
-    inner class ReceiveMessage : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent) {
-            val extra = intent.extras
-            extra?.let {
-                val chat =
-                    Chat(host.toString(), it.getString("body").toString())
-                mainViewModel.insert(chat)
-            }
-
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
+        mainViewModel.application=application as MainApplication
+        //NsdManager needs application context instead of activity. Using activity conext will result into memory leak
+        mainViewModel.nsdManager = application.getSystemService(Context.NSD_SERVICE) as NsdManager
         setContent {
             NavigationHost(this)
         }
     }
 
     fun doBindingService() {
-        val intent = Intent(this, TcpServerService::class.java)
-        serviceIntent = intent
-        bindService(
+        val intent = Intent(application?.applicationContext, TcpServerService::class.java)
+        mainViewModel.serviceIntent = intent
+        application?.bindService(
             intent, object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder?) {
                     val binder = service as TcpServerService.LocalBinder
                     boundService = binder.service
 
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
+                        application?.startForegroundService(intent)
                     } else {
-                        startService(intent)
+                        application?.startService(intent)
                     }
                     boundService?.let {
                         it.startMeForeground()
                         println("Host listening on port:${it.port}")
-                        registerService(it.port)
+                        mainViewModel.registerService(it.port)
                     }
-                    unbindService(this)
-                    registerReceiver(receiver, IntentFilter("TCPMessage"))
+                    application?.unbindService(this)
+                    application?.registerReceiver(mainViewModel.receiver, IntentFilter("TCPMessage"))
                 }
 
                 override fun onServiceDisconnected(name: ComponentName?) {
@@ -128,176 +105,6 @@ class MainActivity : ComponentActivity() {
             Context.BIND_AUTO_CREATE
         )
     }
-
-    fun registerService(port: Int) {
-        // Create the NsdServiceInfo object, and populate it.
-        val serviceInfo = NsdServiceInfo().apply {
-            // The name is subject to change based on conflicts
-            // with other services advertised on the same network.
-            serviceName = "NsdChat"
-            serviceType = "_nsdchat._tcp"
-            setPort(port)
-        }
-        try {
-            nsdManager.apply {
-                registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener)
-            }
-        } catch (e: java.lang.IllegalArgumentException) {
-            println(e)
-        }
-
-    }
-
-    private val registrationListener = object : NsdManager.RegistrationListener {
-
-        override fun onServiceRegistered(NsdServiceInfo: NsdServiceInfo) {
-            // Save the service name. Android may have changed it in order to
-            // resolve a conflict, so update the name you initially requested
-            // with the name Android actually used.
-            mServiceName = NsdServiceInfo.serviceName
-            Log.d(TAG, "Service Registered $mServiceName")
-            try {
-                nsdManager.discoverServices(
-                    SERVICE_TYPE,
-                    NsdManager.PROTOCOL_DNS_SD,
-                    discoveryListener
-                )
-            } catch (e: java.lang.IllegalArgumentException) {
-                println(e)
-            }
-
-        }
-
-        override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            // Registration failed! Put debugging code here to determine why.
-            Log.d(TAG, "Register Failed")
-        }
-
-        override fun onServiceUnregistered(arg0: NsdServiceInfo) {
-            // Service has been unregistered. This only happens when you call
-            // NsdManager.unregisterService() and pass in this listener.
-            Log.d(TAG, "Unregistered")
-        }
-
-        override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            // Unregistration failed. Put debugging code here to determine why.
-            Log.d(TAG, "Unregistered Failed")
-        }
-    }
-    val discoveryListener = object : NsdManager.DiscoveryListener {
-
-        // Called as soon as service discovery begins.
-        override fun onDiscoveryStarted(regType: String) {
-            Log.d(TAG, "Service discovery started")
-        }
-
-        //heads up, seems like emulator doesnt able to connect with nsd, need real devices,
-        //make sure router supports multicast https://stackoverflow.com/questions/36797008/android-nsd-onservicefound-not-getting-called
-        //also, i think the way its intended is to run both registration+discovery listener,
-        //this way, service name will be different, ex: there will be NsdChat and NsdChat (2)
-        //discovering same machine/servicename will ignore it, while different servicenames will connect
-        override fun onServiceFound(service: NsdServiceInfo) {
-            // A service was found! Do something with it.
-            Log.d(TAG, "Service discovery success $service")
-            when {
-                //for some reason service.serviceType adds . to the string
-                service.serviceType != SERVICE_TYPE ->
-                    Log.d(TAG, "Unknown Service Type: ${service.serviceType}")
-                service.serviceName == mServiceName -> // The name of the service tells the user what they'd be
-                    // connecting to. It could be "Bob's Chat App".
-                    Log.d(TAG, "Same machine: $mServiceName")
-//                    nsdManager.resolveService(
-//                        service,
-//                        resolveListener
-//                    )
-                service.serviceName.contains("NsdChat") -> nsdManager.resolveService(
-                    service,
-                    resolveListener
-                )
-            }
-        }
-
-        override fun onServiceLost(service: NsdServiceInfo) {
-            // When the network service is no longer available.
-            // Internal bookkeeping code goes here.
-            Log.e(TAG, "service lost: $service")
-        }
-
-        override fun onDiscoveryStopped(serviceType: String) {
-            Log.i(TAG, "Discovery stopped: $serviceType")
-        }
-
-        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-            Log.e(TAG, "Discovery failed: Error code:$errorCode")
-            nsdManager.stopServiceDiscovery(this)
-        }
-
-        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-            Log.e(TAG, "Discovery failed: Error code:$errorCode")
-            nsdManager.stopServiceDiscovery(this)
-        }
-    }
-    private val resolveListener = object : NsdManager.ResolveListener {
-        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            // Called when the resolve fails. Use the error code to debug.
-            Log.e(TAG, "Resolve failed: $errorCode")
-        }
-
-        override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-            Log.e(TAG, "Resolve Succeeded. $serviceInfo")
-
-            if (serviceInfo.serviceName == mServiceName) {
-                Log.d(TAG, "Same IP.")
-//                return
-            }
-            val mService = serviceInfo
-            val port: Int = serviceInfo.port
-            host = serviceInfo.host
-
-            //connect to serversocket based on host/port information acquired from NSD discover
-            Toast.makeText(this@MainActivity,"$host connected",Toast.LENGTH_SHORT).show()
-            val socket = Socket(host, port)
-
-            //outgoing stream redirect to socket
-            mainViewModel.outputStream = DataOutputStream(socket.getOutputStream())
-
-//            out.writeUTF("This is the first type of message.\n")
-//            out.flush()
-//            out.writeUTF("This is the second type of message.")
-//            out.writeUTF("This is the third type of message (Part 1).")
-//            out.writeUTF("This is the third type of message (Part 2).")
-//            out.flush() // Send off the data
-//            out.close()
-//
-//            //Close connection
-//            socket.close()
-        }
-    }
-
-    override fun onPause() {
-        tearDown()
-        serviceIntent?.let {
-            stopService(it)
-        }
-        super.onPause()
-    }
-
-    fun tearDown() {
-        nsdManager.apply {
-            try {
-                unregisterService(registrationListener)
-                stopServiceDiscovery(discoveryListener)
-            } catch (e: java.lang.IllegalArgumentException) {
-                println(e)
-            }
-        }
-        try {
-            unregisterReceiver(receiver)
-        } catch (e: java.lang.IllegalArgumentException) {
-            println(e)
-        }
-    }
-
     val requestLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -311,6 +118,28 @@ class MainActivity : ComponentActivity() {
             AlertDialogView.buildAlert(this)
         }
     }
+
+    override fun onPause() {
+        tearDown()
+        super.onPause()
+    }
+
+    fun tearDown() {
+        mainViewModel.nsdManager.apply {
+            try {
+                unregisterService(mainViewModel.registrationListener)
+                stopServiceDiscovery(mainViewModel.discoveryListener)
+                unregisterReceiver(mainViewModel.receiver)
+            } catch (e: java.lang.IllegalArgumentException) {
+                println(e)
+            }
+        }
+        mainViewModel.serviceIntent?.let {
+            stopService(it)
+        }
+        mainViewModel.outputStream?.close()
+        mainViewModel.clientSocket?.close()
+    }
 }
 
 @Composable
@@ -320,7 +149,7 @@ fun NavigationHost(mainActivity: MainActivity) {
         composable("main") { MainActivityContent(mainActivity, navController) }
         composable("dialog") { PopUpDialog.DialogBox(mainActivity.mainViewModel) { navController.popBackStack() } }
         composable("javascript") { WebViewJavascript.IndexHTML() }
-        composable("settings") { SettingsView.SettingsContent() }
+        composable("settings") { SettingsView.SettingsContent(mainActivity) }
     }
 }
 
@@ -334,7 +163,7 @@ fun MainActivityContent(
             Box(modifier = Modifier.fillMaxSize()) {
                 ConstraintLayout(modifier = Modifier.fillMaxSize()) {
                     //vals
-                    val mainViewModel = mainActivity.mainViewModel
+                    val mainViewModel=mainActivity.mainViewModel
                     val chatsState = mainViewModel.chats.observeAsState()
                     val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
                     val coroutineScope = rememberCoroutineScope()
@@ -351,7 +180,6 @@ fun MainActivityContent(
                     val searchButton = createRef()
                     val settingsButton = createRef()
                     val hostButton = createRef()
-                    val clientButton = createRef()
                     //loading bar, if it finished doing retrofit then scroll
                     isLoadingState.value?.let { isLoading ->
                         if (isLoading) {
@@ -401,25 +229,6 @@ fun MainActivityContent(
                         }
                         .padding(all = 8.dp), "Create Chat", Color.Blue, Icons.Filled.Create) {
                         navController.navigate("dialog")
-//                        if (ContextCompat.checkSelfPermission(
-//                                mainActivity,
-//                                android.Manifest.permission.WRITE_CALENDAR
-//                            )
-//                            == PackageManager.PERMISSION_GRANTED
-//                        ) {
-//                            CalendarPrompt.pushAppointmentsToCalender(
-//                                mainActivity,
-//                                "Title",
-//                                "Information",
-//                                "Location",
-//                                1,
-//                                System.currentTimeMillis(),
-//                                needReminder = true,
-//                                needMailService = true
-//                            )
-//                        } else {
-//                            mainActivity.requestLauncher.launch(android.Manifest.permission.WRITE_CALENDAR)
-//                        }
                     }
                     //settings button
                     StatefulObject(

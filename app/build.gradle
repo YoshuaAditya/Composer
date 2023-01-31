@@ -111,6 +111,7 @@ dependencies {
     androidTestImplementation "androidx.compose.ui:ui-test-junit4:$compose_ui_version"
     debugImplementation "androidx.compose.ui:ui-tooling:$compose_ui_version"
     debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_ui_version"
+//    debugImplementation "com.squareup.leakcanary:leakcanary-android:2.10"
 }
 kapt {
     correctErrorTypes true
