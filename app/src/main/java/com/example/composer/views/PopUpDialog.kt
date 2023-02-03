@@ -16,13 +16,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.composer.MainViewModel
 import com.example.composer.data.Chat
 
 class PopUpDialog {
     companion object {
         @Composable
-        fun DialogBox(mainViewModel: MainViewModel, onDismiss: () -> Unit) {
+        fun DialogBox(mainViewModel: MainViewModel= hiltViewModel(), onDismiss: () -> Unit) {
             val author = remember { mutableStateOf(TextFieldValue()) }
             val body = remember { mutableStateOf(TextFieldValue()) }
             Dialog(

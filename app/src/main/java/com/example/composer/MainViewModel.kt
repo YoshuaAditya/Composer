@@ -222,9 +222,7 @@ class MainViewModel @Inject constructor(
         })
     }
 
-    fun deleteComment() = viewModelScope.launch {
-        chats.value?.let {
-            if (it.isNotEmpty()) repository.delete(it[0].author)
-        }
+    fun deleteComment(id: Int) = viewModelScope.launch {
+        repository.delete(id)
     }
 }

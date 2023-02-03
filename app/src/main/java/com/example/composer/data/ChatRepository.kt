@@ -16,15 +16,7 @@
 
 package com.example.composer.data
 
-import android.net.Network
 import androidx.annotation.WorkerThread
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.map
-import com.example.composer.MainViewModel
-import dagger.Module
-import dagger.hilt.InstallIn
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,7 +40,7 @@ class ChatRepository @Inject constructor(private val chatDao: ChatDao) {
         chatDao.insertChat(chat)
     }
     @WorkerThread
-    suspend fun delete(author:String) {
-        chatDao.deleteChat(author)
+    suspend fun delete(id: Int) {
+        chatDao.deleteChat(id)
     }
 }

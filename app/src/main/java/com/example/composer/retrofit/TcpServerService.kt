@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.composer.R
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -22,7 +23,7 @@ import java.io.IOException
 import java.net.ServerSocket
 import java.util.concurrent.atomic.AtomicBoolean
 
-
+@AndroidEntryPoint
 class TcpServerService : Service() {
     private var serverSocket = ServerSocket(0)
     var port: Int = serverSocket.localPort
@@ -57,7 +58,8 @@ class TcpServerService : Service() {
         }
     }
 
-
+    //this method leaks, find how next
+    //https://stackoverflow.com/questions/5072469/android-binder-leaks
     inner class LocalBinder : Binder() {
         val service: TcpServerService
             get() = this@TcpServerService
@@ -66,7 +68,7 @@ class TcpServerService : Service() {
     // Create the instance on the service.
     private val binder = LocalBinder()
 
-    override fun onBind(intent: Intent): IBinder? {
+    override fun onBind(intent: Intent): IBinder {
         return binder
     }
 

@@ -11,8 +11,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.*
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,6 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        mainViewModel.application=application as MainApplication
+        mainViewModel.application = application as MainApplication
         //NsdManager needs application context instead of activity. Using activity conext will result into memory leak
         mainViewModel.nsdManager = application.getSystemService(Context.NSD_SERVICE) as NsdManager
         setContent {
@@ -70,6 +71,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    //https://stackoverflow.com/questions/44425584/context-startforegroundservice-did-not-then-call-service-startforeground/72754189#72754189
+    //service doesnt get into foreground 5 seconds, then error
     fun doBindingService() {
         val intent = Intent(application?.applicationContext, TcpServerService::class.java)
         mainViewModel.serviceIntent = intent
@@ -90,7 +93,10 @@ class MainActivity : ComponentActivity() {
                         mainViewModel.registerService(it.port)
                     }
                     application?.unbindService(this)
-                    application?.registerReceiver(mainViewModel.receiver, IntentFilter("TCPMessage"))
+                    application?.registerReceiver(
+                        mainViewModel.receiver,
+                        IntentFilter("TCPMessage")
+                    )
                 }
 
                 override fun onServiceDisconnected(name: ComponentName?) {
@@ -105,6 +111,7 @@ class MainActivity : ComponentActivity() {
             Context.BIND_AUTO_CREATE
         )
     }
+
     val requestLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -146,8 +153,8 @@ class MainActivity : ComponentActivity() {
 fun NavigationHost(mainActivity: MainActivity) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "main") {
-        composable("main") { MainActivityContent(mainActivity, navController) }
-        composable("dialog") { PopUpDialog.DialogBox(mainActivity.mainViewModel) { navController.popBackStack() } }
+        composable("main") { MainActivityContent({ mainActivity.doBindingService() }, navController) }
+        composable("dialog") { PopUpDialog.DialogBox{ navController.popBackStack() } }
         composable("javascript") { WebViewJavascript.IndexHTML() }
         composable("settings") { SettingsView.SettingsContent(mainActivity) }
     }
@@ -155,7 +162,7 @@ fun NavigationHost(mainActivity: MainActivity) {
 
 @Composable
 fun MainActivityContent(
-    mainActivity: MainActivity,
+    startTcpService: () -> Unit,
     navController: NavController
 ) {
     ComposerTheme {
@@ -163,7 +170,7 @@ fun MainActivityContent(
             Box(modifier = Modifier.fillMaxSize()) {
                 ConstraintLayout(modifier = Modifier.fillMaxSize()) {
                     //vals
-                    val mainViewModel=mainActivity.mainViewModel
+                    val mainViewModel:MainViewModel = hiltViewModel()
                     val chatsState = mainViewModel.chats.observeAsState()
                     val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
                     val coroutineScope = rememberCoroutineScope()
@@ -176,7 +183,6 @@ fun MainActivityContent(
                     //refs for constrain layout
                     val button = createRef()
                     val loadingBar = createRef()
-                    val deleteButton = createRef()
                     val searchButton = createRef()
                     val settingsButton = createRef()
                     val hostButton = createRef()
@@ -203,7 +209,7 @@ fun MainActivityContent(
                     //random chat ExtendedFloatingActionButton
                     StatefulObject(Modifier
                         .constrainAs(button) {
-                            bottom.linkTo(deleteButton.top)
+                            bottom.linkTo(searchButton.top)
                             end.linkTo(parent.end)
                         }
                         .padding(all = 8.dp), "Random Chat", Teal200, Icons.Filled.Add) {
@@ -211,15 +217,6 @@ fun MainActivityContent(
                             .toString()//the API max id is 500, if you get 501 it will show error chat instead
                         mainViewModel.isLoadingChats.value = true
                         mainViewModel.getComment(randomId)
-                    }
-                    //delete chat
-                    StatefulObject(Modifier
-                        .constrainAs(deleteButton) {
-                            bottom.linkTo(searchButton.top)
-                            end.linkTo(parent.end)
-                        }
-                        .padding(all = 8.dp), "Delete Chat", Red, Icons.Filled.Delete) {
-                        mainViewModel.deleteComment()
                     }
                     //Get specific id comment
                     StatefulObject(Modifier
@@ -256,7 +253,7 @@ fun MainActivityContent(
                         color = Color.DarkGray,
                         icon = Icons.Filled.Home
                     ) {
-                        mainActivity.doBindingService()
+                        startTcpService()
                     }
                 }
             }
@@ -297,7 +294,7 @@ fun StatelessObject(
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun MessageCard(msg: Chat) {
+fun MessageCard(msg: Chat, viewModel: MainViewModel= hiltViewModel()) {
     Row(modifier = Modifier.padding(all = 8.dp)) {
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),
@@ -354,15 +351,54 @@ fun MessageCard(msg: Chat) {
                     contentDescription = ""
                 )
             }
+            Row {
+                Text(
+                    text = DateTimeText.getTimeAgo(msg.time),
+                    modifier = Modifier.padding(all = 4.dp),
+                    style = MaterialTheme.typography.body2,
+                    color = Color.LightGray
+                )
+                Icon(
+                    imageVector = Icons.Filled.Delete, "delete",
+                    modifier = Modifier
+                        .padding(all = 4.dp)
+                        .clickable {
+                            viewModel.deleteComment(msg.id)
+                        },
+                    tint = Red
+                )
+            }
         }
     }
 }
 
 @Composable
+fun <T> T.AnimationBox(
+    enter: EnterTransition = fadeIn(),
+    exit: ExitTransition = fadeOut(),
+    content: @Composable T.() -> Unit
+) {
+    val state = remember {
+        MutableTransitionState(false).apply {
+            // Start the animation immediately.
+            targetState = true
+        }
+    }
+
+    AnimatedVisibility(
+        visibleState = state,
+        enter = enter,
+        exit = exit
+    ) { content() }
+}
+
+@Composable
 fun Conversation(chats: List<Chat>, listState: LazyListState) {
     LazyColumn(state = listState) {
-        items(chats) { chat ->
-            MessageCard(chat)
+        items(chats, key = { it.id }) { chat ->
+            AnimationBox {
+                MessageCard(chat)
+            }
         }
     }
 }
@@ -378,7 +414,11 @@ fun PreviewMessageCard() {
     ComposerTheme(true) {
         Surface {
             MessageCard(
-                msg = Chat("Colleague", "Take a look at Jetpack Compose, it's great!")
+                msg = Chat(
+                    "Colleague",
+                    "Take a look at Jetpack Compose, it's great!",
+                    System.currentTimeMillis()
+                )
             )
         }
     }

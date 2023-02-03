@@ -18,15 +18,7 @@ package com.example.composer.data
 
 import android.content.Context
 import androidx.lifecycle.LiveData
-import androidx.room.Dao
-import androidx.room.Database
-import androidx.room.Entity
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.PrimaryKey
-import androidx.room.Query
-import androidx.room.Room
-import androidx.room.RoomDatabase
+import androidx.room.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -36,7 +28,8 @@ import com.example.composer.worker.ChatDatabaseWorker.Companion.KEY_FILENAME
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "chats")
-data class Chat constructor(val author: String, val body: String, @PrimaryKey(autoGenerate = true) val id: Int = 0)
+data class Chat constructor(val author: String, val body: String, val time: Long = System.currentTimeMillis(),
+                            @PrimaryKey(autoGenerate = true) val id: Int = 0)
 
 @Dao
 interface ChatDao {
@@ -52,8 +45,8 @@ interface ChatDao {
     @get:Query("select * from chats where id = 0")
     val chatLiveData: LiveData<Chat?>
 
-    @Query("DELETE FROM chats WHERE author = :author")
-    suspend fun deleteChat(author: String)
+    @Query("DELETE FROM chats WHERE id = :id")
+    suspend fun deleteChat(id: Int)
 }
 
 @Database(entities = [Chat::class], version = 1, exportSchema = false)
