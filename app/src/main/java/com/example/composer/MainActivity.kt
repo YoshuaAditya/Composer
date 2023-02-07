@@ -1,12 +1,10 @@
 package com.example.composer
 
-import android.app.Service
 import android.content.*
 import android.content.res.Configuration
 import android.net.nsd.NsdManager
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,13 +57,20 @@ class MainActivity : ComponentActivity() {
     //weird error? java.lang.IllegalArgumentException: CreationExtras must have a value by `SAVED_STATE_REGISTRY_OWNER_KEY`
     //https://stackoverflow.com/questions/73302605/creationextras-must-have-a-value-by-saved-state-registry-owner-key
     val mainViewModel: MainViewModel by viewModels()
-    var boundService: TcpServerService? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mainViewModel.application = application as MainApplication
         //NsdManager needs application context instead of activity. Using activity conext will result into memory leak
         mainViewModel.nsdManager = application.getSystemService(Context.NSD_SERVICE) as NsdManager
+        application.registerReceiver(
+            mainViewModel.receiverPort,
+            IntentFilter("ServerPort")
+        )
+        application.registerReceiver(
+            mainViewModel.receiver,
+            IntentFilter("TCPMessage")
+        )
         setContent {
             NavigationHost(this)
         }
@@ -73,43 +78,15 @@ class MainActivity : ComponentActivity() {
 
     //https://stackoverflow.com/questions/44425584/context-startforegroundservice-did-not-then-call-service-startforeground/72754189#72754189
     //service doesnt get into foreground 5 seconds, then error
-    fun doBindingService() {
-        val intent = Intent(application?.applicationContext, TcpServerService::class.java)
+    fun startingService() {
+        val intent = Intent(application.applicationContext, TcpServerService::class.java)
         mainViewModel.serviceIntent = intent
-        application?.bindService(
-            intent, object : ServiceConnection {
-                override fun onServiceConnected(name: ComponentName, service: IBinder?) {
-                    val binder = service as TcpServerService.LocalBinder
-                    boundService = binder.service
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        application?.startForegroundService(intent)
-                    } else {
-                        application?.startService(intent)
-                    }
-                    boundService?.let {
-                        it.startMeForeground()
-                        println("Host listening on port:${it.port}")
-                        mainViewModel.registerService(it.port)
-                    }
-                    application?.unbindService(this)
-                    application?.registerReceiver(
-                        mainViewModel.receiver,
-                        IntentFilter("TCPMessage")
-                    )
-                }
-
-                override fun onServiceDisconnected(name: ComponentName?) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        boundService?.stopForeground(Service.STOP_FOREGROUND_REMOVE)
-                    } else {
-                        boundService?.stopForeground(true)
-                    }
-                    boundService = null
-                }
-            },
-            Context.BIND_AUTO_CREATE
-        )
+        mainViewModel.isServiceStarted = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            application.startForegroundService(intent)
+        } else {
+            application.startService(intent)
+        }
     }
 
     val requestLauncher = registerForActivityResult(
@@ -131,15 +108,23 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    override fun onStop() {
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+    }
+
     fun tearDown() {
-        mainViewModel.nsdManager.apply {
-            try {
+        if (mainViewModel.isServiceStarted) {
+            mainViewModel.nsdManager.apply {
                 unregisterService(mainViewModel.registrationListener)
                 stopServiceDiscovery(mainViewModel.discoveryListener)
-                unregisterReceiver(mainViewModel.receiver)
-            } catch (e: java.lang.IllegalArgumentException) {
-                println(e)
             }
+            application.unregisterReceiver(mainViewModel.receiver)
+            application.unregisterReceiver(mainViewModel.receiverPort)
+            mainViewModel.isServiceStarted=false
         }
         mainViewModel.serviceIntent?.let {
             stopService(it)
@@ -153,8 +138,13 @@ class MainActivity : ComponentActivity() {
 fun NavigationHost(mainActivity: MainActivity) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "main") {
-        composable("main") { MainActivityContent({ mainActivity.doBindingService() }, navController) }
-        composable("dialog") { PopUpDialog.DialogBox{ navController.popBackStack() } }
+        composable("main") {
+            MainActivityContent(
+                { mainActivity.startingService() },
+                navController
+            )
+        }
+        composable("dialog") { PopUpDialog.DialogBox(mainActivity.mainViewModel) { navController.popBackStack() } }
         composable("javascript") { WebViewJavascript.IndexHTML() }
         composable("settings") { SettingsView.SettingsContent(mainActivity) }
     }
@@ -170,7 +160,7 @@ fun MainActivityContent(
             Box(modifier = Modifier.fillMaxSize()) {
                 ConstraintLayout(modifier = Modifier.fillMaxSize()) {
                     //vals
-                    val mainViewModel:MainViewModel = hiltViewModel()
+                    val mainViewModel: MainViewModel = hiltViewModel()
                     val chatsState = mainViewModel.chats.observeAsState()
                     val isLoadingState = mainViewModel.isLoadingChats.observeAsState()
                     val coroutineScope = rememberCoroutineScope()
@@ -294,7 +284,7 @@ fun StatelessObject(
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun MessageCard(msg: Chat, viewModel: MainViewModel= hiltViewModel()) {
+fun MessageCard(msg: Chat, viewModel: MainViewModel = hiltViewModel()) {
     Row(modifier = Modifier.padding(all = 8.dp)) {
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),

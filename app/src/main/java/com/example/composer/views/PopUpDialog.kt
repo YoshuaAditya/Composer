@@ -21,7 +21,7 @@ import com.example.composer.MainViewModel
 import com.example.composer.data.Chat
 
 class PopUpDialog {
-    companion object {
+    companion object {//this one cant use same viewmodel because of navigation?
         @Composable
         fun DialogBox(mainViewModel: MainViewModel= hiltViewModel(), onDismiss: () -> Unit) {
             val author = remember { mutableStateOf(TextFieldValue()) }

@@ -60,6 +60,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.5.1'
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.5.1"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1"
+    implementation "androidx.lifecycle:lifecycle-service:2.5.1"
 
     implementation "androidx.room:room-ktx:2.4.3"
     implementation "androidx.constraintlayout:constraintlayout-compose:1.0.1"

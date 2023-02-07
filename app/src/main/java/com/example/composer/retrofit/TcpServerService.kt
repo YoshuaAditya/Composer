@@ -7,16 +7,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Binder
 import android.os.Build
-import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.LifecycleService
 import com.example.composer.R
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.IOException
@@ -24,28 +20,30 @@ import java.net.ServerSocket
 import java.util.concurrent.atomic.AtomicBoolean
 
 @AndroidEntryPoint
-class TcpServerService : Service() {
+class TcpServerService : LifecycleService() {
     private var serverSocket = ServerSocket(0)
     var port: Int = serverSocket.localPort
     private val working = AtomicBoolean(true)
-    private val runnable = GlobalScope.launch(Dispatchers.IO) {
-        try {
-            while (working.get()) {
-                println("while loop")
-                val socket = serverSocket.accept()
-                println("New client: $socket")
-                val dataInputStream = BufferedReader(socket.getInputStream().reader())
-                val dataOutputStream = DataOutputStream(socket.getOutputStream())
 
-                while(true){
-                    if (dataInputStream.ready()) {
-                        //use lambda function implements closable interface to automatically close the stream
-                        val body=dataInputStream.readLine()
-                        Log.i(TAG, "Received: $body")
-                        val intent = Intent("TCPMessage")
-                        intent.putExtra("body", body)
-                        sendBroadcast(intent)
-                    }
+    //maybe global scope leaks?
+    private val runnable = Runnable {
+        try {
+            println("while loop")
+
+            val socket = serverSocket.accept()
+            println("New client: $socket")
+            val dataInputStream = BufferedReader(socket.getInputStream().reader())
+            val dataOutputStream = DataOutputStream(socket.getOutputStream())
+
+            while (working.get()) {
+                if (dataInputStream.ready()) {
+                    //use lambda function implements closable interface to automatically close the stream
+                    val body = dataInputStream.readLine()
+                    Log.i(TAG, "Received: $body")
+                    Log.i(TAG, "Received: $socket")
+                    val intent = Intent("TCPMessage")
+                    intent.putExtra("body", body)
+                    sendBroadcast(intent)
                 }
             }
         } catch (e: IOException) {
@@ -58,29 +56,25 @@ class TcpServerService : Service() {
         }
     }
 
-    //this method leaks, find how next
-    //https://stackoverflow.com/questions/5072469/android-binder-leaks
-    inner class LocalBinder : Binder() {
-        val service: TcpServerService
-            get() = this@TcpServerService
-    }
-
-    // Create the instance on the service.
-    private val binder = LocalBinder()
-
-    override fun onBind(intent: Intent): IBinder {
-        return binder
-    }
-
     override fun onCreate() {
+        val intentPort = Intent("ServerPort")
+        intentPort.putExtra("port", port)
+        sendBroadcast(intentPort)
         startMeForeground()
-        runnable
+        super.onCreate()
+        Thread(runnable).start()
     }
+
 
     override fun onDestroy() {
         working.set(false)
-        runnable.cancel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        } else {
+            stopSelf()
+        }
         serverSocket.close()
+        super.onDestroy()
     }
 
     //5 second time limit to start a service? it gives ANR when failed to start at that time

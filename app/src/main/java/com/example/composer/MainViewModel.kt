@@ -40,7 +40,10 @@ class MainViewModel @Inject constructor(
     var serviceIntent: Intent? = null
     var host: InetAddress? = null
     var clientSocket: Socket? = null
+    var port:Int=0
     val receiver = ReceiveMessage()
+    val receiverPort = ReceivePort()
+    var isServiceStarted = false
 
     inner class ReceiveMessage : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent) {
@@ -53,6 +56,18 @@ class MainViewModel @Inject constructor(
 
         }
     }
+    inner class ReceivePort : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent) {
+            val extra = intent.extras
+            extra?.let {
+                if(port == 0){
+                    port = it.getInt("port")
+                    println("Host listening on port:$port")
+                    registerService(port)
+                }
+            }
+        }
+    }
 
 
     fun insert(chat: Chat) = viewModelScope.launch {
@@ -63,6 +78,7 @@ class MainViewModel @Inject constructor(
         outputStream?.let {
             it.writeUTF(chat.body+"\n")
             it.flush()
+            Log.i("tag", "Send chat: $host $port")
             val yourChat=Chat("You",chat.body)
             repository.insert(yourChat)
         }
@@ -94,16 +110,11 @@ class MainViewModel @Inject constructor(
             // with the name Android actually used.
             mServiceName = NsdServiceInfo.serviceName
             Log.d(TAG, "Service Registered $mServiceName")
-            try {
-                nsdManager.discoverServices(
-                    SERVICE_TYPE,
-                    NsdManager.PROTOCOL_DNS_SD,
-                    discoveryListener
-                )
-            } catch (e: java.lang.IllegalArgumentException) {
-                println(e)
-            }
-
+            nsdManager.discoverServices(
+                SERVICE_TYPE,
+                NsdManager.PROTOCOL_DNS_SD,
+                discoveryListener
+            )
         }
 
         override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
@@ -141,17 +152,14 @@ class MainViewModel @Inject constructor(
                 //for some reason service.serviceType adds . to the string
                 service.serviceType != SERVICE_TYPE ->
                     Log.d(TAG, "Unknown Service Type: ${service.serviceType}")
-                service.serviceName == mServiceName -> // The name of the service tells the user what they'd be
-                    // connecting to. It could be "Bob's Chat App".
-                    Log.d(TAG, "Same machine: $mServiceName")
+//                service.serviceName == mServiceName -> // The name of the service tells the user what they'd be
+//                    // connecting to. It could be "Bob's Chat App".
+//                    Log.d(TAG, "Same machine: $mServiceName")
 //                    nsdManager.resolveService(
 //                        service,
 //                        resolveListener
 //                    )
-                service.serviceName.contains("NsdChat") -> nsdManager.resolveService(
-                    service,
-                    resolveListener
-                )
+                service.serviceName.contains("NsdChat") -> startResolveService(service)
             }
         }
 
@@ -159,6 +167,7 @@ class MainViewModel @Inject constructor(
             // When the network service is no longer available.
             // Internal bookkeeping code goes here.
             Log.e(TAG, "service lost: $service")
+
         }
 
         override fun onDiscoveryStopped(serviceType: String) {
@@ -175,29 +184,42 @@ class MainViewModel @Inject constructor(
             nsdManager.stopServiceDiscovery(this)
         }
     }
-    private val resolveListener = object : NsdManager.ResolveListener {
-        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            // Called when the resolve fails. Use the error code to debug.
-            Log.e(TAG, "Resolve failed: $errorCode")
-        }
 
-        override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-            Log.e(TAG, "Resolve Succeeded. $serviceInfo")
-
-            if (serviceInfo.serviceName == mServiceName) {
-                Log.d(TAG, "Same IP.")
-//                return
+    //to prevent resolver already used, make a new resolver each time discover service success
+    private fun startResolveService(serviceInfo: NsdServiceInfo) {
+        val resolveListener: NsdManager.ResolveListener = object : NsdManager.ResolveListener {
+            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                Log.e(TAG, "Resolve Failed: $serviceInfo\tError Code: $errorCode")
+                when (errorCode) {
+                    NsdManager.FAILURE_ALREADY_ACTIVE -> {
+                        Log.e(TAG, "FAILURE_ALREADY_ACTIVE")
+                        // Just try again...
+//                        startResolveService(serviceInfo)
+                    }
+                    NsdManager.FAILURE_INTERNAL_ERROR -> Log.e(TAG, "FAILURE_INTERNAL_ERROR")
+                    NsdManager.FAILURE_MAX_LIMIT -> Log.e(TAG, "FAILURE_MAX_LIMIT")
+                }
             }
-            val mService = serviceInfo
-            val port: Int = serviceInfo.port
-            host = serviceInfo.host
 
-            //connect to serversocket based on host/port information acquired from NSD discover
-            Toast.makeText(application,"$host connected", Toast.LENGTH_SHORT).show()
-            clientSocket = Socket(host, port)
-            //outgoing stream redirect to socket
-            outputStream = DataOutputStream(clientSocket?.getOutputStream())
+            override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                Log.e(TAG, "Resolve Succeeded. $serviceInfo")
+
+                if (serviceInfo.serviceName == mServiceName) {
+                    Log.d(TAG, "Same IP.")
+                    return
+                }
+                val mService = serviceInfo
+                val port: Int = serviceInfo.port
+                host = serviceInfo.host
+
+                //connect to serversocket based on host/port information acquired from NSD discover
+                Toast.makeText(application,"$host connected", Toast.LENGTH_SHORT).show()
+                clientSocket = Socket(host, port)
+                //outgoing stream redirect to socket
+                outputStream = DataOutputStream(clientSocket?.getOutputStream())
+            }
         }
+        nsdManager.resolveService(serviceInfo, resolveListener)
     }
 
     fun getComment(id: String) {
