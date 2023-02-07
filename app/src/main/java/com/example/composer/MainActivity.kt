@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
         application.registerReceiver(
             mainViewModel.receiver,
             IntentFilter("TCPMessage")
-        )
+        )//TODO prettify chat ui
         setContent {
             NavigationHost(this)
         }
