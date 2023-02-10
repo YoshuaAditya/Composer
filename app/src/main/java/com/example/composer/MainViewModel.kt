@@ -100,8 +100,8 @@ class MainViewModel @Inject constructor(
         } catch (e: java.lang.IllegalArgumentException) {
             println(e)
         }
-
     }
+
     val registrationListener = object : NsdManager.RegistrationListener {
 
         override fun onServiceRegistered(NsdServiceInfo: NsdServiceInfo) {

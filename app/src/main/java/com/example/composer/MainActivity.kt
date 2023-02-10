@@ -60,8 +60,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        initVariables()
+        setContent {
+            NavigationHost(this)
+        }
+    }
+
+    private fun initVariables() {
         mainViewModel.application = application as MainApplication
-        //NsdManager needs application context instead of activity. Using activity conext will result into memory leak
+        //NsdManager needs application context instead of activity. Using activity context will result into memory leak
         mainViewModel.nsdManager = application.getSystemService(Context.NSD_SERVICE) as NsdManager
         application.registerReceiver(
             mainViewModel.receiverPort,
@@ -70,10 +77,7 @@ class MainActivity : ComponentActivity() {
         application.registerReceiver(
             mainViewModel.receiver,
             IntentFilter("TCPMessage")
-        )//TODO prettify chat ui
-        setContent {
-            NavigationHost(this)
-        }
+        )
     }
 
     //https://stackoverflow.com/questions/44425584/context-startforegroundservice-did-not-then-call-service-startforeground/72754189#72754189
@@ -117,20 +121,20 @@ class MainActivity : ComponentActivity() {
     }
 
     fun tearDown() {
-        if (mainViewModel.isServiceStarted) {
-            mainViewModel.nsdManager.apply {
-                unregisterService(mainViewModel.registrationListener)
-                stopServiceDiscovery(mainViewModel.discoveryListener)
+        mainViewModel.apply {
+            if (isServiceStarted) {
+                nsdManager.unregisterService(registrationListener)
+                nsdManager.stopServiceDiscovery(discoveryListener)
+                isServiceStarted=false
+                serviceIntent?.let {
+                    stopService(it)
+                }
+                outputStream?.close()
+                clientSocket?.close()
             }
-            application.unregisterReceiver(mainViewModel.receiver)
-            application.unregisterReceiver(mainViewModel.receiverPort)
-            mainViewModel.isServiceStarted=false
         }
-        mainViewModel.serviceIntent?.let {
-            stopService(it)
-        }
-        mainViewModel.outputStream?.close()
-        mainViewModel.clientSocket?.close()
+        application.unregisterReceiver(mainViewModel.receiver)
+        application.unregisterReceiver(mainViewModel.receiverPort)
     }
 }
 

@@ -28,8 +28,6 @@ class TcpServerService : LifecycleService() {
     //maybe global scope leaks?
     private val runnable = Runnable {
         try {
-            println("while loop")
-
             val socket = serverSocket.accept()
             println("New client: $socket")
             val dataInputStream = BufferedReader(socket.getInputStream().reader())
@@ -37,13 +35,10 @@ class TcpServerService : LifecycleService() {
 
             while (working.get()) {
                 if (dataInputStream.ready()) {
-                    //use lambda function implements closable interface to automatically close the stream
-                    val body = dataInputStream.readLine()
-                    Log.i(TAG, "Received: $body")
+                    val message = dataInputStream.readLine()
+                    Log.i(TAG, "Received: $message")
                     Log.i(TAG, "Received: $socket")
-                    val intent = Intent("TCPMessage")
-                    intent.putExtra("body", body)
-                    sendBroadcast(intent)
+                    sendChatMessage(message)
                 }
             }
         } catch (e: IOException) {
@@ -56,13 +51,23 @@ class TcpServerService : LifecycleService() {
         }
     }
 
+    private fun sendChatMessage(message:String) {
+        val intent = Intent("TCPMessage")
+        intent.putExtra("body", message)
+        sendBroadcast(intent)
+    }
+
     override fun onCreate() {
-        val intentPort = Intent("ServerPort")
-        intentPort.putExtra("port", port)
-        sendBroadcast(intentPort)
+        sendServerPort()
         startMeForeground()
         super.onCreate()
         Thread(runnable).start()
+    }
+
+    private fun sendServerPort() {
+        val intentPort = Intent("ServerPort")
+        intentPort.putExtra("port", port)
+        sendBroadcast(intentPort)
     }
 
 
